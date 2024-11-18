@@ -16,6 +16,7 @@ class Database:
             # Crear tabla para Assets
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS assets (
+                    last_seen_at DATETIME,
                     ip_address TEXT PRIMARY KEY,
                     mac_address TEXT,
                     hostname TEXT,
@@ -48,12 +49,28 @@ class Database:
             """, (asset.ip_address, asset.mac_address, asset.hostname, asset.os_name))
             conn.commit()
 
-    def get_asset(self, ip_address: str) -> Optional[Asset]:
+    def update_asset_by_ip(self, ip_address: str, asset: Asset) -> None:
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE assets SET mac_address = ?, hostname = ?, os_name = ? WHERE ip_address = ?
+            """, (asset.mac_address, asset.hostname, asset.os_name, asset.ip_address))
+            conn.commit()
+
+    def update_asset_by_mac(self, mac_address: str, asset: Asset) -> None:
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE assets SET ip_address = ?, hostname = ?, os_name = ? WHERE mac_address = ?
+            """, (asset.ip_address, asset.hostname, asset.os_name, mac_address))
+            conn.commit()
+        
+
+    def get_asset_by_ip(self, ip_address: str) -> Optional[Asset]:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM assets WHERE ip_address = ?", (ip_address,))
             row = cursor.fetchone()
-            
             if row:
                 return Asset(
                     ip_address=row[0],
@@ -62,11 +79,19 @@ class Database:
                     os_name=row[3]
                 )
             return None
+        
+    def get_asset_by_mac(self, mac_address: str) -> Optional[Asset]:
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM assets WHERE mac_address = ?", (mac_address,))
+            row = cursor.fetchone()
+            if row:
+                return Asset(ip_address=row[0], mac_address=row[1], hostname=row[2], os_name=row[3])
+            return None
 
     def add_connection(self, connection: Connection) -> None:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            print(connection)
             cursor.execute("""
                 INSERT INTO connections (datetime, source_ip, source_port, 
                                       destination_ip, destination_port, 

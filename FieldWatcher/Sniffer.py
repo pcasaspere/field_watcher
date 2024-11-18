@@ -80,7 +80,6 @@ class SnifferManager:
                 if self.config.verbose:
                     verbose(f"++ [ARP] {ip_src} - ({mac_src})")
         elif packet.haslayer(NBTDatagram):
-            print('aloha')
             src_ip = packet[NBTDatagram].SourceIP
             hostname = packet[NBTDatagram].SourceName
             if hostname:
@@ -106,7 +105,7 @@ class SnifferManager:
             iface=self.config.interface,
             count=0,
             # filter="arp or port 137 or port 138 or port 139 or ether proto 0x88cc",
-            filter="net 192.168.57.0/24",
+            filter=f"net {self.config.network}",
             prn=self._packet_handler,
             timeout=timeout
         )
