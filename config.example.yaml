@@ -1,0 +1,7 @@
+database:
+    path: "database.db"
+sniffer:
+    interface: "enp0s3 eth0"
+api:
+    endpoint: "https://backend.atendata.xyz/sensors/assets"
+    token: "******"
