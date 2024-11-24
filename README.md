@@ -22,12 +22,17 @@ api:
 ```bash
 [Unit]
 Description=Atendata Field Watcher
-After=multi-user.target
+After=network.target
 
 [Service]
 Type=simple
+User=root
+WorkingDirectory=/opt/bruma
 Restart=always
-ExecStart=/home/bruma/bruma/venv/bin/python /home/bruma/bruma/field-watcher/main.py --config /opt/FieldWatch/config.yaml 
+RestartSec=5
+StandardOutput=append:/var/log/field-watcher.log
+StandardError=append:/var/log/field-watcher.error.log
+ExecStart=/opt/bruma/venv/bin/python3 /opt/bruma/field-watcher.py --config /opt/bruma/config.yaml
 
 [Install]
 WantedBy=multi-user.target

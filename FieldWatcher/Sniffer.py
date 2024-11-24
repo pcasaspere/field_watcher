@@ -95,9 +95,6 @@ class SnifferManager:
 
     def sniff(self, timeout=10):
 
-        if not self.config.silent:
-            verbose(f"Sniffing on interface {self.config.interface} for {timeout} seconds...")
-
         self.asset_collector.clear()
         self.connection_collector.clear()
 

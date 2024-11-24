@@ -16,11 +16,13 @@ class Database:
             # Crear tabla para Assets
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS assets (
-                    last_seen_at DATETIME,
                     ip_address TEXT PRIMARY KEY,
                     mac_address TEXT,
                     hostname TEXT,
-                    os_name TEXT
+                    os_name TEXT,
+                    last_seen_at DATETIME,
+                    created_at DATETIME,
+                    updated_at DATETIME
                 )
             """)
             
@@ -28,13 +30,15 @@ class Database:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS connections (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    datetime TEXT NOT NULL,
+                    datetime DATETIME,
                     source_ip TEXT,
                     source_port INTEGER,
                     destination_ip TEXT,
                     destination_port INTEGER,
                     protocol TEXT,
-                    application TEXT
+                    application TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             """)
             
@@ -44,25 +48,25 @@ class Database:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT OR REPLACE INTO assets (ip_address, mac_address, hostname, os_name)
-                VALUES (?, ?, ?, ?)
+                INSERT OR REPLACE INTO assets (ip_address, mac_address, hostname, os_name, created_at, updated_at)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             """, (asset.ip_address, asset.mac_address, asset.hostname, asset.os_name))
             conn.commit()
 
-    def update_asset_by_ip(self, ip_address: str, asset: Asset) -> None:
+    def update_asset_by_ip(self, asset: Asset) -> None:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                UPDATE assets SET mac_address = ?, hostname = ?, os_name = ? WHERE ip_address = ?
+                UPDATE assets SET mac_address = ?, hostname = ?, os_name = ?, last_seen_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE ip_address = ?
             """, (asset.mac_address, asset.hostname, asset.os_name, asset.ip_address))
             conn.commit()
 
-    def update_asset_by_mac(self, mac_address: str, asset: Asset) -> None:
+    def update_asset_by_mac(self,  asset: Asset) -> None:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                UPDATE assets SET ip_address = ?, hostname = ?, os_name = ? WHERE mac_address = ?
-            """, (asset.ip_address, asset.hostname, asset.os_name, mac_address))
+                UPDATE assets SET ip_address = ?, hostname = ?, os_name = ?, last_seen_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE mac_address = ?
+            """, (asset.ip_address, asset.hostname, asset.os_name, asset.mac_address))
             conn.commit()
         
 
@@ -95,8 +99,8 @@ class Database:
             cursor.execute("""
                 INSERT INTO connections (datetime, source_ip, source_port, 
                                       destination_ip, destination_port, 
-                                      protocol, application)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                                      protocol, application, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             """, (connection.datetime, connection.source_ip,
                  connection.source_port, connection.destination_ip,
                  connection.destination_port, connection.protocol,
@@ -131,10 +135,8 @@ class Database:
         """Elimina todas las tablas y las vuelve a crear"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            
-            # Eliminar tablas existentes
+
             cursor.execute("DROP TABLE IF EXISTS assets")
             cursor.execute("DROP TABLE IF EXISTS connections")
-            
-            # Reinicializar la base de datos
+
             self.init_db()

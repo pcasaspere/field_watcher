@@ -4,7 +4,7 @@ import os
 import signal
 from typing import Optional
 import threading
-from queue import Queue
+import asyncio
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from FieldWatcher import ConfigManager, ApiManager, SnifferManager, verbose, verbose_error, Database, Connection, Asset
 
@@ -21,40 +21,8 @@ class FieldWatcher:
         self.db: Database = Database(self.config)
         self.sniffer: SnifferManager = SnifferManager(self.config)
         self.api: Optional[ApiManager] = None if not self.config.use_api else ApiManager(self.config)
-        
-        # Colas para assets y connections
-        self.assets_queue: Queue[list[Asset]] = Queue()
-        self.connections_queue: Queue[list[Connection]] = Queue()
-        
-        # Iniciar workers
-        self._start_workers()
-
-    def _start_workers(self) -> None:
-        """Inicia los workers que procesarán las colas"""
-        self.assets_worker = threading.Thread(target=self._process_assets_queue, daemon=True)
-        self.connections_worker = threading.Thread(target=self._process_connections_queue, daemon=True)
-        
-        self.assets_worker.start()
-        self.connections_worker.start()
-
-    def _process_assets_queue(self) -> None:
-        """Worker que procesa la cola de assets"""
-        while True:
-            assets = self.assets_queue.get()
-            self.sync_assets(assets)
-            self.assets_queue.task_done()
-
-    def _process_connections_queue(self) -> None:
-        """Worker que procesa la cola de connections"""
-        while True:
-            connections = self.connections_queue.get()
-            self.sync_connections(connections)
-            self.connections_queue.task_done()
 
     def print_banner(self) -> None:
-        if not self.config.verbose:
-            return
-
         verbose("Starting the script...")   
         verbose(f"Interface: {self.config.interface}")
         verbose(f"Network: {self.config.network}")
@@ -76,14 +44,17 @@ class FieldWatcher:
             verbose_error("PENDENT CREAR WEBHOOK")
         for asset in assets:
             if self.db.get_asset_by_ip(asset.ip_address):
-                self.db.update_asset_by_ip(asset.ip_address, asset)
+                self.db.update_asset_by_ip(asset)
             elif self.db.get_asset_by_mac(asset.mac_address):
-                self.db.update_asset_by_mac(asset.mac_address, asset)
+                self.db.update_asset_by_mac(asset)
             else:
                 self.db.add_asset(asset)
 
     def sniff(self, timeout: int = 5) -> tuple[list[Asset], list[Connection]]:
         
+        if not self.config.silent:
+            verbose(f"Sniffing on interface {self.config.interface} for {timeout} seconds...")
+
         self.sniffer.sniff(timeout=timeout)
 
         if self.config.verbose:
@@ -91,6 +62,7 @@ class FieldWatcher:
             verbose(f"Connections: {self.sniffer.connection_collector.to_list()}")
 
         return self.sniffer.asset_collector.get_items(), self.sniffer.connection_collector.get_items()
+            
 
 
 if __name__ == '__main__':
@@ -121,8 +93,6 @@ if __name__ == '__main__':
     sniff_timeout = 5 if field_watcher.config.verbose else 60
 
     while True:
-        assets, connections = field_watcher.sniff(timeout=sniff_timeout)
-        
-        # Añadir nuevos datos a las colas
-        field_watcher.assets_queue.put(assets)
-        field_watcher.connections_queue.put(connections)
+        assets, connections = field_watcher.sniff(sniff_timeout)
+        field_watcher.sync_assets(assets)
+        field_watcher.sync_connections(connections)
