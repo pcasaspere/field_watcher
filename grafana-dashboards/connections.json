@@ -1,0 +1,579 @@
+{
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": {
+            "type": "grafana",
+            "uid": "-- Grafana --"
+          },
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "type": "dashboard"
+        }
+      ]
+    },
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 0,
+    "id": 1,
+    "links": [],
+    "panels": [
+      {
+        "datasource": {
+          "type": "frser-sqlite-datasource",
+          "uid": "ae4wfnajfl3i8f"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              }
+            },
+            "mappings": []
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 7,
+          "w": 6,
+          "x": 0,
+          "y": 0
+        },
+        "id": 1,
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "pieType": "donut",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": true
+          },
+          "tooltip": {
+            "mode": "single",
+            "sort": "none"
+          }
+        },
+        "pluginVersion": "11.3.0+security-01",
+        "targets": [
+          {
+            "datasource": {
+              "type": "frser-sqlite-datasource",
+              "uid": "ae4wfnajfl3i8f"
+            },
+            "hide": false,
+            "queryText": "SELECT\n  source_ip,\n  count(source_ip) as metric\nFROM connections\nWHERE\n  unixepoch(datetime) BETWEEN ($__from / 1000) AND ($__to / 1000)\n  and source_ip in (${asset:sqlstring})\nGROUP BY source_ip",
+            "queryType": "table",
+            "rawQueryText": "SELECT\n  source_ip,\n  count(source_ip) as metric\nFROM connections\nWHERE\n  unixepoch(datetime) BETWEEN ($__from / 1000) AND ($__to / 1000)\n  and source_ip in (${asset:sqlstring})\nGROUP BY source_ip",
+            "refId": "A",
+            "timeColumns": [
+              "time"
+            ]
+          }
+        ],
+        "title": "Group by Source IP",
+        "type": "piechart"
+      },
+      {
+        "datasource": {
+          "type": "frser-sqlite-datasource",
+          "uid": "ae4wfnajfl3i8f"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              }
+            },
+            "mappings": []
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 7,
+          "w": 7,
+          "x": 6,
+          "y": 0
+        },
+        "id": 2,
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "pieType": "donut",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": true
+          },
+          "tooltip": {
+            "mode": "single",
+            "sort": "none"
+          }
+        },
+        "pluginVersion": "11.3.0+security-01",
+        "targets": [
+          {
+            "datasource": {
+              "type": "frser-sqlite-datasource",
+              "uid": "ae4wfnajfl3i8f"
+            },
+            "hide": false,
+            "queryText": "SELECT\n  destination_ip,\n  count(destination_ip) as metric\nFROM connections\nWHERE\n  unixepoch(datetime) BETWEEN (1732425863416 / 1000) AND (1732447463416 / 1000)\n  and source_ip in ('192.168.57.1','192.168.57.2','192.168.57.27')\nGROUP BY destination_ip",
+            "queryType": "table",
+            "rawQueryText": "SELECT\n  destination_ip,\n  count(destination_ip) as metric\nFROM connections\nWHERE\n  unixepoch(datetime) BETWEEN ($__from / 1000) AND ($__to / 1000)\n  and source_ip in (${asset:sqlstring})\nGROUP BY destination_ip",
+            "refId": "A",
+            "timeColumns": [
+              "time"
+            ]
+          }
+        ],
+        "title": "Group by Destination IP",
+        "type": "piechart"
+      },
+      {
+        "datasource": {
+          "type": "frser-sqlite-datasource",
+          "uid": "ae4wfnajfl3i8f"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              }
+            },
+            "mappings": []
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 7,
+          "w": 6,
+          "x": 13,
+          "y": 0
+        },
+        "id": 3,
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "pieType": "donut",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": true
+          },
+          "tooltip": {
+            "mode": "single",
+            "sort": "none"
+          }
+        },
+        "pluginVersion": "11.3.0+security-01",
+        "targets": [
+          {
+            "queryText": "SELECT\n  application,\n  count(application) as metric\nFROM connections\nWHERE\n  unixepoch(datetime) BETWEEN ($__from / 1000) AND ($__to / 1000)\n  and source_ip in (${asset:sqlstring})\nGROUP BY application",
+            "queryType": "table",
+            "rawQueryText": "SELECT\n  application,\n  count(application) as metric\nFROM connections\nWHERE\n  unixepoch(datetime) BETWEEN ($__from / 1000) AND ($__to / 1000)\n  and source_ip in (${asset:sqlstring})\nGROUP BY application",
+            "refId": "A",
+            "timeColumns": [
+              "time",
+              "ts"
+            ]
+          }
+        ],
+        "title": "Group by Application",
+        "type": "piechart"
+      },
+      {
+        "datasource": {
+          "uid": "ae4wfnajfl3i8f"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "fixedColor": "light-green",
+              "mode": "fixed"
+            },
+            "fieldMinMax": false,
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 7,
+          "w": 5,
+          "x": 19,
+          "y": 0
+        },
+        "id": 6,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "percentChangeColorMode": "standard",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": true
+          },
+          "showPercentChange": false,
+          "textMode": "auto",
+          "wideLayout": true
+        },
+        "pluginVersion": "11.3.0+security-01",
+        "targets": [
+          {
+            "queryText": "SELECT count(id) as value\nFROM connections\nWHERE\n  unixepoch(datetime) BETWEEN (1732425863416 / 1000) AND (1732447463416 / 1000)\n  and source_ip in ('192.168.57.1')",
+            "queryType": "table",
+            "rawQueryText": "SELECT count(id) as value\nFROM connections\nWHERE\n  unixepoch(datetime) BETWEEN ($__from / 1000) AND ($__to / 1000)\n  and source_ip in (${asset:sqlstring})",
+            "refId": "A",
+            "timeColumns": [
+              "time",
+              "ts"
+            ]
+          }
+        ],
+        "title": "TOTAL CONNECTIONS",
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "frser-sqlite-datasource",
+          "uid": "ae4wfnajfl3i8f"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": "auto",
+              "cellOptions": {
+                "type": "auto"
+              },
+              "filterable": true,
+              "inspect": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "source_ip"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 127
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "source_port"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 119
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "destination_ip"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 144
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "destination_port"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 145
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "local_datetime"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 179
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 13,
+          "w": 13,
+          "x": 0,
+          "y": 7
+        },
+        "id": 4,
+        "options": {
+          "cellHeight": "sm",
+          "footer": {
+            "countRows": false,
+            "enablePagination": true,
+            "fields": "",
+            "reducer": [
+              "sum"
+            ],
+            "show": false
+          },
+          "showHeader": true,
+          "sortBy": []
+        },
+        "pluginVersion": "11.3.0+security-01",
+        "targets": [
+          {
+            "queryText": "SELECT\n  strftime('%Y-%m-%d %H:%M:%S', datetime, 'localtime') AS local_datetime,\n  source_ip,\n  source_port,\n  destination_ip,\n  destination_port,\n  application\nFROM connections\nWHERE\n  unixepoch(datetime) BETWEEN ($__from / 1000) AND ($__to / 1000)\n  and source_ip in (${asset:sqlstring})\nORDER BY datetime DESC;\n",
+            "queryType": "table",
+            "rawQueryText": "SELECT\n  strftime('%Y-%m-%d %H:%M:%S', datetime, 'localtime') AS local_datetime,\n  source_ip,\n  source_port,\n  destination_ip,\n  destination_port,\n  application\nFROM connections\nWHERE\n  unixepoch(datetime) BETWEEN ($__from / 1000) AND ($__to / 1000)\n  and source_ip in (${asset:sqlstring})\nORDER BY datetime DESC;\n",
+            "refId": "A",
+            "timeColumns": [
+              "time",
+              "ts"
+            ]
+          }
+        ],
+        "title": "Connections",
+        "type": "table"
+      },
+      {
+        "datasource": {
+          "type": "frser-sqlite-datasource",
+          "uid": "ae4wfnajfl3i8f"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": "auto",
+              "cellOptions": {
+                "type": "auto"
+              },
+              "filterable": true,
+              "inspect": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "source_ip"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 127
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "source_port"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 119
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "destination_ip"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 144
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "destination_port"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 145
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 13,
+          "w": 11,
+          "x": 13,
+          "y": 7
+        },
+        "id": 5,
+        "options": {
+          "cellHeight": "sm",
+          "footer": {
+            "countRows": false,
+            "enablePagination": true,
+            "fields": "",
+            "reducer": [
+              "sum"
+            ],
+            "show": false
+          },
+          "showHeader": true,
+          "sortBy": []
+        },
+        "pluginVersion": "11.3.0+security-01",
+        "targets": [
+          {
+            "queryText": "SELECT\n  ip_address,\n  mac_address,\n  hostname,\n  os_name,\n  datetime(last_seen_at) as last_seen_at\nFROM assets\nWHERE unixepoch(last_seen_at) BETWEEN (1732425863416 / 1000) AND (1732447463416 / 1000)\nORDER BY last_seen_at DESC;\n",
+            "queryType": "table",
+            "rawQueryText": "SELECT\n  ip_address,\n  mac_address,\n  hostname,\n  os_name,\n  datetime(last_seen_at) as last_seen_at\nFROM assets\nWHERE unixepoch(last_seen_at) BETWEEN ($__from / 1000) AND ($__to / 1000)\nORDER BY last_seen_at DESC;\n",
+            "refId": "A",
+            "timeColumns": [
+              "time",
+              "ts"
+            ]
+          }
+        ],
+        "title": "Active Assets",
+        "type": "table"
+      }
+    ],
+    "preload": false,
+    "schemaVersion": 40,
+    "tags": [],
+    "templating": {
+      "list": [
+        {
+          "current": {
+            "text": [
+              "All"
+            ],
+            "value": [
+              "$__all"
+            ]
+          },
+          "definition": "select ip_address \nfrom assets\ngroup by ip_address",
+          "includeAll": true,
+          "label": "Asset",
+          "multi": true,
+          "name": "asset",
+          "options": [],
+          "query": "select ip_address \nfrom assets\ngroup by ip_address",
+          "refresh": 1,
+          "regex": "",
+          "sort": 1,
+          "type": "query"
+        }
+      ]
+    },
+    "time": {
+      "from": "now-5m",
+      "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "browser",
+    "title": "Connections",
+    "uid": "ce4wgi6r64agwf",
+    "version": 27,
+    "weekStart": ""
+  }

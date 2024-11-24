@@ -3,8 +3,9 @@ import sys
 import os
 import signal
 from typing import Optional
-import threading
-import asyncio
+import requests
+
+
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from FieldWatcher import ConfigManager, ApiManager, SnifferManager, verbose, verbose_error, Database, Connection, Asset
 
@@ -36,8 +37,7 @@ class FieldWatcher:
     def sync_connections(self, connections: list[Connection]) -> None:
         if self.config.use_api:
             verbose_error("PENDENT CREAR WEBHOOK")
-        for connection in connections:
-            self.db.add_connection(connection)
+        self.db.add_many_connections(connections)
 
     def sync_assets(self, assets: list[Asset]) -> None:
         if self.config.use_api:
@@ -58,12 +58,22 @@ class FieldWatcher:
         self.sniffer.sniff(timeout=timeout)
 
         if self.config.verbose:
-            verbose(f"Assets: {self.sniffer.asset_collector.to_list()}")
-            verbose(f"Connections: {self.sniffer.connection_collector.to_list()}")
+            verbose(f"Total assets captured: {len(self.sniffer.asset_collector)}")
+            verbose(f"Total connections captured: {len(self.sniffer.connection_collector)}")
 
         return self.sniffer.asset_collector.get_items(), self.sniffer.connection_collector.get_items()
-            
+    
+    def reset(self):
+        self.db.reset_database()
+        verbose(f"Sqlite3 database {self.config.db_path} reseted")
 
+        requests.post("http://localhost:9200/bruma")
+        verbose("Opensearch Bruma index was cleaned")
+        try:
+            os.system('echo "" > /var/log/suricata/eve.json')
+            verbose("Suricata eve.log file was cleaned")
+        except FileNotFoundError:
+            pass
 
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal_handler)
@@ -75,21 +85,26 @@ if __name__ == '__main__':
     
     parser.add_argument('--config', type=str, default='config.yaml', help='Path to config file (optional)')
     parser.add_argument('--use-api', action='store_true', default=False, help='Use API to sync data')
-    parser.add_argument('--db-reset', action='store_true', default=False, help='Reset the database')
+    parser.add_argument('--update', action='store_true', default=False, help='Update utils')
+    parser.add_argument('--reset', action='store_true', default=False, help='Revmoe all data from the databases')
     parser.add_argument('--verbose', action='store_true', default=False, help='Enable verbose output')
     
     args = parser.parse_args()
 
+    if args.update:
+        verbose('Updating mac vendors...')
+        os.system('venv/bin/python3 -c "from mac_vendor_lookup import MacLookup; MacLookup().update_vendors()"')
+        sys.exit(0)
+    
     config = ConfigManager(args.config, args.verbose, args.use_api)
 
     field_watcher = FieldWatcher(config)
-    field_watcher.print_banner()
-
-    if args.db_reset:
-        field_watcher.db.reset_database()
-        verbose("Database reseted")
+        
+    if args.reset and input("Are you sure you want to delete the entire databases? This action cannot be undone \n[YES/NO]: ").upper() == "YES":
+        field_watcher.reset()
         sys.exit(0)
 
+    field_watcher.print_banner()
     sniff_timeout = 5 if field_watcher.config.verbose else 60
 
     while True:

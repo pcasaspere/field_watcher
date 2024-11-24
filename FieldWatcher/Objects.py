@@ -1,16 +1,22 @@
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from abc import ABC, abstractmethod
+from mac_vendor_lookup import MacLookup
 from .Utils import TCP_PROTOCOLS, UDP_PROTOCOLS
-
-
 
 class Asset:
     def __init__(self, ip_address: str, mac_address: Optional[str] = None, hostname: Optional[str] = None, os_name: Optional[str] = None):
         self.ip_address = ip_address
-        self.mac_address = mac_address
+        self.mac_address = mac_address.upper() if mac_address else None
         self.hostname = hostname
         self.os_name = os_name
+        self.vendor = None
+
+        if self.mac_address:
+            try:
+                self.vendor = MacLookup().lookup(self.mac_address)
+            except Exception as e:
+                pass
 
     def update(self, mac=None, hostname=None, os_name=None):
         if mac:
@@ -31,7 +37,7 @@ class Asset:
  
 class Connection:
     def __init__(self, source_ip: str, source_port: int, destination_ip: str, destination_port: int, protocol: str, application: str):
-        self.datetime = datetime.now()
+        self.datetime = datetime.now(timezone.utc)
         self.source_ip = source_ip
         self.source_port = source_port
         self.destination_ip = destination_ip

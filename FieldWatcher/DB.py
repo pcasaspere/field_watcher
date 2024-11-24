@@ -20,6 +20,7 @@ class Database:
                     mac_address TEXT,
                     hostname TEXT,
                     os_name TEXT,
+                    vendor TEXT,
                     last_seen_at DATETIME,
                     created_at DATETIME,
                     updated_at DATETIME
@@ -93,18 +94,25 @@ class Database:
                 return Asset(ip_address=row[0], mac_address=row[1], hostname=row[2], os_name=row[3])
             return None
 
-    def add_connection(self, connection: Connection) -> None:
+    def add_many_connections(self, connections: List[Connection]) -> None:
         with sqlite3.connect(self.db_path) as conn:
+            prepared_connections = [
+                (
+                    conn.datetime,
+                    conn.source_ip, 
+                    conn.source_port,
+                    conn.destination_ip,
+                    conn.destination_port,
+                    conn.protocol,
+                    conn.application
+                ) 
+                for conn in connections
+            ]
             cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO connections (datetime, source_ip, source_port, 
-                                      destination_ip, destination_port, 
-                                      protocol, application, created_at, updated_at)
+            cursor.executemany("""
+                INSERT INTO connections (datetime, source_ip, source_port, destination_ip, destination_port, protocol, application, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            """, (connection.datetime, connection.source_ip,
-                 connection.source_port, connection.destination_ip,
-                 connection.destination_port, connection.protocol,
-                 connection.application))
+            """, prepared_connections)
             conn.commit()
 
     def get_connections(self, limit: int = 100) -> List[Connection]:
