@@ -65,6 +65,9 @@ suricata-update --suricata-conf /etc/suricata/suricata.yaml --disable-conf /etc/
 
 
 ## Grafana
+Afegir connectors de `sqlite` y `opensearch`.
+
+
 ### Queries examples
 **filter between dates**
 ```sql
