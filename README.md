@@ -39,7 +39,7 @@ WorkingDirectory=/opt/bruma
 Restart=always
 RestartSec=5
 StandardError=append:/var/log/field-watcher.error
-ExecStart=/opt/bruma/venv/bin/python3 /opt/bruma/field-watcher.py --config /opt/bruma/config.yaml --verbose
+ExecStart=/opt/bruma/venv/bin/python3 /opt/bruma/field-watcher.py --config /opt/bruma/config.yaml
 
 [Install]
 WantedBy=multi-user.target
