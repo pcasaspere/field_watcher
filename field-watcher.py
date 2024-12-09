@@ -63,6 +63,10 @@ class FieldWatcher:
 
         return self.sniffer.asset_collector.get_items(), self.sniffer.connection_collector.get_items()
     
+    def clean_connections(self, days: int):
+        self.db.clean_connections(days)
+        verbose(f"Connections older than {days} days were removed")
+
     def reset(self):
         self.db.reset_database()
         verbose(f"Sqlite3 database {self.config.db_path} reseted")
@@ -87,6 +91,7 @@ if __name__ == '__main__':
     parser.add_argument('--use-api', action='store_true', default=False, help='Use API to sync data')
     parser.add_argument('--update', action='store_true', default=False, help='Update utils')
     parser.add_argument('--reset', action='store_true', default=False, help='Revmoe all data from the databases')
+    parser.add_argument('--clean-connections', type=int, default=30, help='Clean connections older than N days')
     parser.add_argument('--verbose', action='store_true', default=False, help='Enable verbose output')
     
     args = parser.parse_args()
@@ -102,6 +107,10 @@ if __name__ == '__main__':
         
     if args.reset and input("Are you sure you want to delete the entire databases? This action cannot be undone \n[YES/NO]: ").upper() == "YES":
         field_watcher.reset()
+        sys.exit(0)
+
+    if args.clean_connections:
+        field_watcher.clean_connections(args.clean_connections)
         sys.exit(0)
 
     field_watcher.print_banner()

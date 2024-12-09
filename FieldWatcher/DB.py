@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, List
 from .Config import ConfigManager
 from .Objects import Asset, Connection
@@ -138,6 +138,13 @@ class Database:
                 connections.append(conn)
             
             return connections
+        
+    
+    def clean_connections(self, days: int):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM connections WHERE datetime < ?", (datetime.now() - timedelta(days=days),))
+            conn.commit()
 
     def reset_database(self) -> None:
         """Elimina todas las tablas y las vuelve a crear"""

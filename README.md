@@ -23,8 +23,6 @@ systemctl daemon-reload
 systemctl restart suricata
 ```
 
-
-
 ## Field-Watcher
 > /etc/systemd/system/atendata-field-watcher.service
 ```bash
@@ -44,6 +42,13 @@ ExecStart=/opt/bruma/venv/bin/python3 /opt/bruma/field-watcher.py --config /opt/
 [Install]
 WantedBy=multi-user.target
 ```
+
+> crontab
+```bash
+0 6 * * * sudo venv/bin/python3 field-watcher.py --clean-connection=1 &> /dev/null
+```
+
+
 
 ## Suricata
 ### Rule list
