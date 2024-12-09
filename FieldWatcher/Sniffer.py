@@ -76,18 +76,18 @@ class SnifferManager:
             ip_src = packet[ARP].psrc
             mac_src = packet[ARP].hwsrc
             if self._is_private_ip(ip_src):
-                self.asset_collector.add(ip_src, mac=mac_src)
+                asset = self.asset_collector.add(ip_src, mac=mac_src)
                 if self.config.verbose:
-                    verbose(f"++ [ARP] {ip_src} - ({mac_src})")
+                    verbose(f"++ [ARP] {asset.ip_address} - {asset.mac_address} - {asset.vendor}")
         elif packet.haslayer(NBTDatagram):
             src_ip = packet[NBTDatagram].SourceIP
             hostname = packet[NBTDatagram].SourceName
             if hostname:
                 hostname = hostname.decode("utf-8").strip()
             if self._is_private_ip(src_ip):
-                self.asset_collector.add(src_ip, hostname=hostname)
+                asset = self.asset_collector.add(src_ip, hostname=hostname)
                 if self.config.verbose:
-                    verbose(f"++ [NBTDatagram] {src_ip} - ({hostname})")
+                    verbose(f"++ [NBTDatagram] {asset.ip_address} - {asset.hostname} - {asset.vendor}")
 
     def _packet_handler(self, packet):
         self._connection_handler(packet)

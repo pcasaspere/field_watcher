@@ -21,6 +21,10 @@ class Asset:
     def update(self, mac=None, hostname=None, os_name=None):
         if mac:
             self.mac_address = mac
+            try:
+                self.vendor = MacLookup().lookup(self.mac_address)
+            except Exception as e:
+                pass
         if hostname:
             self.hostname = hostname
         if os_name:
