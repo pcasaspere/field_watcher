@@ -45,7 +45,7 @@ WantedBy=multi-user.target
 
 > crontab
 ```bash
-0 6 * * * sudo venv/bin/python3 field-watcher.py --clean-connection=1 &> /dev/null
+0 6 * * * /opt/bruma/venv/bin/python3 /opt/bruma/field-watcher.py --config=/opt/bruma/config.yaml --clean-connection=1 &> /dev/null
 ```
 
 
