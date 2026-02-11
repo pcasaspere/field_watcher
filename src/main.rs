@@ -11,8 +11,7 @@ use std::process;
 use tracing::{error, info};
 use tracing_subscriber;
 
-#[tokio::main]
-async fn main() {
+fn main() {
     let args = Cli::parse();
 
     // Initialize logging
@@ -26,7 +25,7 @@ async fn main() {
 
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    info!("Starting FieldWatcher (Host Discovery Mode)...");
+    info!("Starting FieldWatcher (Host Discovery SPAN mode)...");
 
     // Initialize Database
     let db = match Database::new(&args.db_path) {
@@ -36,12 +35,6 @@ async fn main() {
             process::exit(1);
         }
     };
-
-    // Handle special flags that exit early
-    if args.update {
-        info!("Updating mac vendors...");
-        process::exit(0);
-    }
 
     if args.reset {
         info!("Resetting database...");
@@ -62,19 +55,18 @@ async fn main() {
 
     loop {
         for &iface in &interfaces {
-            info!("Sniffing on interface {} for {} seconds...", iface, sniff_timeout);
+            info!("Discovery round on {} ({}s)...", iface, sniff_timeout);
             
             let sniffer = Sniffer::new(iface.to_string(), args.network.clone());
             let assets = sniffer.sniff(sniff_timeout);
 
             if args.verbose {
-                info!("Captured {} assets on {}", assets.len(), iface);
+                info!("Identified {} hosts on {}", assets.len(), iface);
             }
 
-            // Sync assets to DB
             for asset in &assets {
                 if let Err(e) = db.sync_asset(asset) {
-                    error!("Failed to sync asset {} to DB: {}", asset.ip_address, e);
+                    error!("Failed to sync asset {}: {}", asset.mac_address, e);
                 }
             }
         }

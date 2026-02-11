@@ -1,9 +1,9 @@
 use pcap::{Capture, Device};
-use etherparse::{PacketHeaders, EtherType};
+use etherparse::{PacketHeaders, NetHeaders, LinkHeader, EtherType};
 use crate::domain::models::Asset;
 use std::collections::HashMap;
 use chrono::Utc;
-use tracing::{warn, error};
+use tracing::{warn, error, debug};
 use mac_oui::Oui;
 
 pub struct Sniffer {
@@ -59,7 +59,7 @@ impl Sniffer {
         let mut cap = match Capture::from_device(device)
             .unwrap()
             .promisc(true)
-            .snaplen(65535)
+            .snaplen(128) // We only need headers for discovery, keep it light
             .timeout(timeout_secs * 1000)
             .open() {
                 Ok(c) => c,
@@ -69,7 +69,8 @@ impl Sniffer {
                 }
             };
 
-        let filter = format!("arp or net {}", self.network);
+        // For discovery on SPAN ports, we want ARP and any IP traffic to map MAC->IP
+        let filter = format!("arp or (ip and net {})", self.network);
         if let Err(e) = cap.filter(&filter, true) {
              warn!("Failed to set BPF filter '{}': {}", filter, e);
         }
@@ -85,36 +86,57 @@ impl Sniffer {
                 }
             };
 
-            match PacketHeaders::from_ethernet_slice(&packet.data) {
-                Ok(value) => {
-                    if let Some(link) = value.link {
-                        if let etherparse::LinkHeader::Ethernet2(eth) = link {
-                            if eth.ether_type == EtherType::ARP {
-                                 if packet.data.len() >= 28 + 14 {
-                                     let psrc = &packet.data[28+14..32+14];
-                                     let hwsrc = &packet.data[22+14..28+14];
-                                     let ip_str = format!("{}.{}.{}.{}", psrc[0], psrc[1], psrc[2], psrc[3]);
-                                     let mac_str = format!("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}", 
-                                        hwsrc[0], hwsrc[1], hwsrc[2], hwsrc[3], hwsrc[4], hwsrc[5]);
+            if let Ok(value) = PacketHeaders::from_ethernet_slice(&packet.data) {
+                let mut mac_opt = None;
+                let mut ip_opt = None;
 
-                                     if Self::is_private_ip([psrc[0], psrc[1], psrc[2], psrc[3]]) {
-                                         let vendor = self.get_vendor(&mac_str);
-                                         assets.entry(ip_str.clone()).or_insert(Asset {
-                                             ip_address: ip_str,
-                                             mac_address: Some(mac_str),
-                                             hostname: None,
-                                             vendor,
-                                             last_seen_at: Some(Utc::now()),
-                                             created_at: Some(Utc::now()),
-                                             updated_at: Some(Utc::now()),
-                                         });
-                                     }
-                                 }
-                            }
+                // 1. Extract MAC from Ethernet Header
+                if let Some(LinkHeader::Ethernet2(eth)) = value.link {
+                    let mac_str = format!("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}", 
+                        eth.source[0], eth.source[1], eth.source[2], eth.source[3], eth.source[4], eth.source[5]);
+                    
+                    // Ignore broadcast/multicast sources
+                    if eth.source[0] & 1 == 0 && mac_str != "00:00:00:00:00:00" {
+                        mac_opt = Some(mac_str);
+                    }
+
+                    // Special case: ARP
+                    if eth.ether_type == EtherType::ARP && packet.data.len() >= 42 {
+                        let psrc = &packet.data[28..32]; // ARP source IP
+                        let hwsrc = &packet.data[22..28]; // ARP source MAC
+                        let arp_ip = format!("{}.{}.{}.{}", psrc[0], psrc[1], psrc[2], psrc[3]);
+                        let arp_mac = format!("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}", 
+                            hwsrc[0], hwsrc[1], hwsrc[2], hwsrc[3], hwsrc[4], hwsrc[5]);
+                        
+                        if Self::is_private_ip([psrc[0], psrc[1], psrc[2], psrc[3]]) {
+                            mac_opt = Some(arp_mac);
+                            ip_opt = Some(arp_ip);
                         }
                     }
                 }
-                Err(_e) => {}
+
+                // 2. Extract IP from IP Header if not already found by ARP
+                if ip_opt.is_none() {
+                    if let Some(NetHeaders::Ipv4(ipv4, _)) = value.net {
+                        if Self::is_private_ip(ipv4.source) {
+                            ip_opt = Some(format!("{}.{}.{}.{}", ipv4.source[0], ipv4.source[1], ipv4.source[2], ipv4.source[3]));
+                        }
+                    }
+                }
+
+                // 3. If we have both, we found/confirmed a host
+                if let (Some(mac), Some(ip)) = (mac_opt, ip_opt) {
+                    assets.entry(mac.clone()).or_insert_with(|| {
+                        let vendor = self.get_vendor(&mac);
+                        Asset {
+                            mac_address: mac,
+                            ip_address: ip,
+                            hostname: None,
+                            vendor,
+                            last_seen_at: Utc::now(),
+                        }
+                    }).last_seen_at = Utc::now();
+                }
             }
         }
 

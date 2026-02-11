@@ -4,10 +4,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Asset {
     pub ip_address: String,
-    pub mac_address: Option<String>,
+    pub mac_address: String,
     pub hostname: Option<String>,
     pub vendor: Option<String>,
-    pub last_seen_at: Option<DateTime<Utc>>,
-    pub created_at: Option<DateTime<Utc>>,
-    pub updated_at: Option<DateTime<Utc>>,
+    pub last_seen_at: DateTime<Utc>,
 }

@@ -2,7 +2,7 @@ use clap::Parser;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
-#[command(about = "This script is used to get the sensor data from the network and store it in the database.")]
+#[command(about = "FieldWatcher: Specialized Host Discovery Tool for SPAN/Mirror ports.")]
 pub struct Cli {
     /// Network interface(s) to sniff on (e.g., "eth0" or "eth0 wlan0")
     #[arg(short, long, env = "FW_INTERFACE")]
@@ -15,10 +15,6 @@ pub struct Cli {
     /// Path to the SQLite database file
     #[arg(short, long, default_value = "database.db", env = "FW_DB_PATH")]
     pub db_path: String,
-
-    /// Update utils
-    #[arg(long)]
-    pub update: bool,
 
     /// Remove all data from the databases
     #[arg(long)]

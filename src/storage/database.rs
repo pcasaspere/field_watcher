@@ -15,69 +15,35 @@ impl Database {
     }
 
     fn init_db(&self) -> Result<()> {
+        // We use mac_address as the unique identifier since IPs can change
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS assets (
-                ip_address TEXT PRIMARY KEY,
-                mac_address TEXT,
+                mac_address TEXT PRIMARY KEY,
+                ip_address TEXT,
                 hostname TEXT,
                 vendor TEXT,
-                last_seen_at DATETIME,
-                created_at DATETIME,
-                updated_at DATETIME
+                last_seen_at DATETIME
             )",
             [],
         )?;
-
-        self.conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_assets_mac ON assets(mac_address)",
-            [],
-        )?;
-
         Ok(())
     }
 
     pub fn sync_asset(&self, asset: &Asset) -> Result<()> {
-        if let Some(mac) = &asset.mac_address {
-            let mut stmt = self.conn.prepare("SELECT ip_address FROM assets WHERE mac_address = ?")?;
-            let mut rows = stmt.query(params![mac])?;
-            if let Some(row) = rows.next()? {
-                let existing_ip: String = row.get(0)?;
-                
-                if existing_ip != asset.ip_address {
-                    self.conn.execute("DELETE FROM assets WHERE mac_address = ?", params![mac])?;
-                } else {
-                    self.update_asset_by_ip(asset)?;
-                    return Ok(());
-                }
-            }
-        }
-
-        self.add_asset(asset)?;
-        Ok(())
-    }
-
-    fn add_asset(&self, asset: &Asset) -> Result<()> {
         self.conn.execute(
-            "INSERT OR REPLACE INTO assets (ip_address, mac_address, hostname, vendor, last_seen_at, created_at, updated_at)
-             VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
-            params![
-                asset.ip_address,
-                asset.mac_address,
-                asset.hostname,
-                asset.vendor,
-            ],
-        )?;
-        Ok(())
-    }
-
-    fn update_asset_by_ip(&self, asset: &Asset) -> Result<()> {
-        self.conn.execute(
-            "UPDATE assets SET mac_address = ?, hostname = ?, vendor = ?, last_seen_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE ip_address = ?",
+            "INSERT INTO assets (mac_address, ip_address, hostname, vendor, last_seen_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(mac_address) DO UPDATE SET
+                ip_address = excluded.ip_address,
+                hostname = COALESCE(excluded.hostname, assets.hostname),
+                vendor = COALESCE(excluded.vendor, assets.vendor),
+                last_seen_at = excluded.last_seen_at",
             params![
                 asset.mac_address,
+                asset.ip_address,
                 asset.hostname,
                 asset.vendor,
-                asset.ip_address,
+                asset.last_seen_at,
             ],
         )?;
         Ok(())
