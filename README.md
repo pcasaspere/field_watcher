@@ -30,6 +30,16 @@ The optimized binary will be available at `./target/release/field_watcher`.
 
 ## 🚀 Usage
 
+### Basic Usage Flow
+```mermaid
+graph LR
+    Wire((Network Wire)) -- SPAN/Mirror Port --> Sniffer[Real-time Sniffer]
+    Sniffer -- BPF Filtered Packets --> Parser{Protocol Parser}
+    Parser -- ARP/DHCP/mDNS... --> Cache[Throttle Cache]
+    Cache -- New or Changed Asset --> DB[(SQLite WAL)]
+    DB -- Query --> CLI[--list table]
+```
+
 ### Real-time Monitoring
 Run the daemon on one or more interfaces:
 
@@ -48,7 +58,42 @@ View the discovered hosts in a clean, human-readable table:
 ./target/release/field_watcher --list
 ```
 
-### Options
+## 🐧 Deployment: Running as a Daemon (Rocky Linux)
+
+To run Field Watcher as a background service on Rocky Linux (or any systemd-based distro):
+
+1. **Build the binary**: `cargo build --release`
+2. **Move to system path**: `sudo cp target/release/field_watcher /usr/local/bin/`
+3. **Create a service file**: `sudo nano /etc/systemd/system/field-watcher.service`
+
+```ini
+[Unit]
+Description=Field Watcher Discovery Daemon
+After=network.target
+
+[Service]
+Type=simple
+# Required for packet capture
+User=root
+ExecStart=/usr/local/bin/field_watcher --interface "eth0" --db-path "/var/lib/field_watcher/assets.db"
+Restart=always
+RestartSec=5
+# Optional: Ensure directory exists
+RuntimeDirectory=field_watcher
+
+[Install]
+WantedBy=multi-user.target
+```
+
+4. **Enable and start**:
+```bash
+sudo mkdir -p /var/lib/field_watcher
+sudo systemctl daemon-reload
+sudo systemctl enable --now field-watcher
+sudo systemctl status field-watcher
+```
+
+## ⚙️ Options
 
 | Option | Environment Variable | Description |
 | :--- | :--- | :--- |
