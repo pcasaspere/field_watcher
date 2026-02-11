@@ -7,10 +7,10 @@ This document outlines the strategy for migrating the `field_watcher` project fr
 - [x] **Branching**: Ensure legacy code is preserved in branch `v1`.
 
 ## Phase 1: Foundation & Setup
-- [ ] **Initialize Rust Project**: Create a new Cargo project.
-- [ ] **CLI Argument Parsing**: Implement CLI using `clap`. Support existing flags: `--config`, `--use-api`, `--update`, `--reset`, `--clean-connections`, `--verbose`.
-- [ ] **Configuration Management**: Implement YAML configuration loading using `serde` and `serde_yaml`.
-- [ ] **Logging**: Set up structured logging using `tracing` or `env_logger`.
+- [x] **Initialize Rust Project**: Create a new Cargo project.
+- [x] **CLI Argument Parsing**: Implement CLI using `clap`. Support existing flags: `--config`, `--use-api`, `--update`, `--reset`, `--clean-connections`, `--verbose`.
+- [x] **Configuration Management**: Implement YAML configuration loading using `serde` and `serde_yaml`.
+- [x] **Logging**: Set up structured logging using `tracing` or `env_logger`.
 
 ## Phase 2: Data Model & Storage
 - [ ] **Data Objects**: Define `Asset` and `Connection` structs with `serde` support.
