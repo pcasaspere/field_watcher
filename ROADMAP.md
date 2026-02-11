@@ -2,6 +2,10 @@
 
 This document outlines the strategy for migrating the `field_watcher` project from Python to Rust.
 
+## Phase 0: Legacy Preservation
+- [x] **Create Legacy Folder**: Move existing Python codebase into a `legacy/` directory to clear the root for the Rust implementation.
+- [x] **Branching**: Ensure legacy code is preserved in branch `v1`.
+
 ## Phase 1: Foundation & Setup
 - [ ] **Initialize Rust Project**: Create a new Cargo project.
 - [ ] **CLI Argument Parsing**: Implement CLI using `clap`. Support existing flags: `--config`, `--use-api`, `--update`, `--reset`, `--clean-connections`, `--verbose`.
