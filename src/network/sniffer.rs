@@ -23,6 +23,16 @@ impl Sniffer {
         Sniffer { interface, oui_db }
     }
 
+    fn is_private_ip(ip: [u8; 4]) -> bool {
+        match ip {
+            [10, _, _, _] => true,
+            [172, b, _, _] if b >= 16 && b <= 31 => true,
+            [192, 168, _, _] => true,
+            [169, 254, _, _] => true, // Link-local
+            _ => false,
+        }
+    }
+
     fn get_vendor(&self, mac: &str) -> Option<String> {
         self.oui_db.as_ref()?.lookup_by_mac(mac).ok().flatten().map(|e| e.company_name.clone())
     }
@@ -52,12 +62,13 @@ impl Sniffer {
                 }
             };
 
+        // Capture ARP and any IP traffic for discovery
         let filter = "arp or ip";
         if let Err(e) = cap.filter(filter, true) {
              warn!("Failed to set BPF filter '{}': {}", filter, e);
         }
 
-        info!("Autonomous sniffer started on {}", interface_name);
+        info!("Autonomous sniffer (Private Networks Only) started on {}", interface_name);
 
         loop {
             let packet = match cap.next_packet() {
@@ -93,20 +104,24 @@ impl Sniffer {
 
                     if eth.ether_type == EtherType::ARP && packet.data.len() >= 42 {
                         let psrc = &packet.data[28..32];
-                        let hwsrc = &packet.data[22..28];
-                        ip_opt = Some(format!("{}.{}.{}.{}", psrc[0], psrc[1], psrc[2], psrc[3]));
-                        mac_opt = Some(format!("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}", 
-                            hwsrc[0], hwsrc[1], hwsrc[2], hwsrc[3], hwsrc[4], hwsrc[5]));
+                        if Self::is_private_ip([psrc[0], psrc[1], psrc[2], psrc[3]]) {
+                            let hwsrc = &packet.data[22..28];
+                            ip_opt = Some(format!("{}.{}.{}.{}", psrc[0], psrc[1], psrc[2], psrc[3]));
+                            mac_opt = Some(format!("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}", 
+                                hwsrc[0], hwsrc[1], hwsrc[2], hwsrc[3], hwsrc[4], hwsrc[5]));
+                        }
                     }
                 }
 
                 if ip_opt.is_none() {
                     if let Some(NetHeaders::Ipv4(ipv4, _)) = value.net {
-                        ip_opt = Some(format!("{}.{}.{}.{}", ipv4.source[0], ipv4.source[1], ipv4.source[2], ipv4.source[3]));
-                        
-                        if let Some(TransportHeader::Udp(udp)) = value.transport {
-                            if udp.destination_port == 5353 || udp.destination_port == 5355 {
-                                hostname_opt = self.extract_hostname_from_dns(value.payload.slice());
+                        if Self::is_private_ip(ipv4.source) {
+                            ip_opt = Some(format!("{}.{}.{}.{}", ipv4.source[0], ipv4.source[1], ipv4.source[2], ipv4.source[3]));
+                            
+                            if let Some(TransportHeader::Udp(udp)) = value.transport {
+                                if udp.destination_port == 5353 || udp.destination_port == 5355 {
+                                    hostname_opt = self.extract_hostname_from_dns(value.payload.slice());
+                                }
                             }
                         }
                     }
