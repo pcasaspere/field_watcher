@@ -24,10 +24,6 @@ pub struct Cli {
     #[arg(long)]
     pub reset: bool,
 
-    /// Clean connections older than N days
-    #[arg(long, default_value_t = 30)]
-    pub clean_connections: u64,
-
     /// Enable verbose output
     #[arg(long)]
     pub verbose: bool,
