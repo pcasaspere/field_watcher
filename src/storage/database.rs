@@ -21,7 +21,6 @@ impl Database {
     fn init_db(&self) -> Result<()> {
         let conn = self.pool.get().expect("Failed to get connection from pool");
         
-        // Enable WAL mode for high-concurrency (Multiple readers, one writer)
         conn.execute_batch("
             PRAGMA journal_mode = WAL;
             PRAGMA synchronous = NORMAL;
@@ -43,46 +42,26 @@ impl Database {
         Ok(())
     }
 
+    /// Optimized UPSERT logic:
+    /// - Matches by mac_address (Primary Key).
+    /// - If it exists: Updates IP, hostname, vendor, vlan, method and last_seen.
+    /// - Does NOT update first_seen_at (preserving history).
     pub fn sync_asset(&self, asset: &Asset) -> Result<()> {
         let conn = self.pool.get().expect("Failed to get connection from pool");
         
-        // Priority: Match by MAC (Stable ID)
-        let mut stmt = conn.prepare("SELECT ip_address FROM assets WHERE mac_address = ?")?;
-        let mut rows = stmt.query(params![asset.mac_address])?;
-        
-        if let Some(row) = rows.next()? {
-            let existing_ip: String = row.get(0)?;
-            
-            if existing_ip != asset.ip_address {
-                // IP changed for known MAC -> Overwrite
-                conn.execute("DELETE FROM assets WHERE mac_address = ?", params![asset.mac_address])?;
-            } else {
-                // Same IP/MAC -> Just update timestamps/metadata
-                conn.execute(
-                    "UPDATE assets SET 
-                        hostname = COALESCE(?1, hostname), 
-                        vendor = COALESCE(?2, vendor), 
-                        vlan_id = ?3,
-                        discovery_method = ?4,
-                        last_seen_at = ?5 
-                     WHERE mac_address = ?6",
-                    params![
-                        asset.hostname,
-                        asset.vendor,
-                        asset.vlan_id,
-                        asset.discovery_method,
-                        asset.last_seen_at,
-                        asset.mac_address,
-                    ],
-                )?;
-                return Ok(());
-            }
-        }
-
-        // New asset or IP changed
         conn.execute(
-            "INSERT INTO assets (mac_address, ip_address, hostname, vendor, vlan_id, discovery_method, first_seen_at, last_seen_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            "INSERT INTO assets (
+                mac_address, ip_address, hostname, vendor, vlan_id, 
+                discovery_method, first_seen_at, last_seen_at
+            )
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+            ON CONFLICT(mac_address) DO UPDATE SET
+                ip_address = excluded.ip_address,
+                hostname = COALESCE(excluded.hostname, assets.hostname),
+                vendor = COALESCE(excluded.vendor, assets.vendor),
+                vlan_id = excluded.vlan_id,
+                discovery_method = excluded.discovery_method,
+                last_seen_at = excluded.last_seen_at",
             params![
                 asset.mac_address,
                 asset.ip_address,
@@ -94,6 +73,7 @@ impl Database {
                 asset.last_seen_at,
             ],
         )?;
+
         Ok(())
     }
 
