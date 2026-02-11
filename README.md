@@ -44,6 +44,34 @@ At any time, you can view a clean table of all discovered devices:
 ./field_watcher --list
 ```
 
+## 🐧 Running as a Service (Linux)
+
+If you want the watcher to run automatically in the background when your system starts:
+
+1. **Move the binary**: `sudo cp target/release/field_watcher /usr/local/bin/`
+2. **Create the service file**: `sudo nano /etc/systemd/system/field-watcher.service`
+
+Paste this inside:
+```ini
+[Unit]
+Description=Field Watcher Network Discovery
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/field_watcher --interface "eth0" --db-path "/var/lib/field_watcher/assets.db"
+Restart=always
+User=root
+
+[Install]
+WantedBy=multi-user.target
+```
+
+3. **Start it up**:
+```bash
+sudo mkdir -p /var/lib/field_watcher
+sudo systemctl enable --now field-watcher
+```
+
 ## ⚙️ Options
 
 | Option | Description |
