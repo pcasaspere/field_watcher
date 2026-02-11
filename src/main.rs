@@ -29,9 +29,9 @@ async fn main() {
 
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    // Initialize Database wrapped in Arc and Mutex for thread safety
+    // Initialize Database (Thread-safe pool)
     let db = match Database::new(&args.db_path) {
-        Ok(database) => Arc::new(Mutex::new(database)),
+        Ok(database) => Arc::new(database),
         Err(e) => {
             error!("Failed to initialize database at '{}': {}", args.db_path, e);
             process::exit(1);
@@ -40,8 +40,7 @@ async fn main() {
 
     // Handle List Flag
     if args.list {
-        let db_lock = db.lock().await;
-        match db_lock.get_all_assets() {
+        match db.get_all_assets() {
             Ok(assets) => {
                 let mut table = Table::new();
                 table.set_header(vec!["IP Address", "MAC Address", "Vendor", "VLAN", "Hostname", "Method", "First Seen", "Last Seen"]);
@@ -67,8 +66,7 @@ async fn main() {
 
     if args.reset {
         info!("Resetting database...");
-        let db_lock = db.lock().await;
-        if let Err(e) = db_lock.reset_database() {
+        if let Err(e) = db.reset_database() {
             error!("Failed to reset database: {}", e);
             process::exit(1);
         }
@@ -76,31 +74,26 @@ async fn main() {
         process::exit(0);
     }
 
-    // Require interface for sniffing
     if args.interface.is_empty() {
         error!("Error: --interface is required for host discovery.");
         process::exit(1);
     }
 
-    info!("Starting FieldWatcher (Specialized Discovery)...");
+    info!("Starting FieldWatcher (Real-time Specialized Discovery)...");
     info!("Interface(s): {}", args.interface);
     info!("Database path: {}", args.db_path);
 
-    // Channel for real-time asset discovery
     let (tx, mut rx) = mpsc::channel(100);
 
-    // Start Sniffers for each interface
     let interfaces: Vec<String> = args.interface.split_whitespace().map(|s| s.to_string()).collect();
     for iface in interfaces {
         let sniffer = Sniffer::new(iface);
         let tx_clone = tx.clone();
-        
         tokio::task::spawn_blocking(move || {
             sniffer.start(tx_clone);
         });
     }
 
-    // Real-time Processor with Throttle Cache
     let throttle_cache: Arc<Mutex<HashMap<String, (DateTime<Utc>, String, Option<String>, String)>>> = Arc::new(Mutex::new(HashMap::new()));
     let throttle_duration = Duration::seconds(10);
 
@@ -141,9 +134,9 @@ async fn main() {
             let mut sync_asset = asset.clone();
             sync_asset.hostname = final_hostname;
 
-            tokio::spawn(async move {
-                let db_lock = db_clone.lock().await;
-                if let Err(e) = db_lock.sync_asset(&sync_asset) {
+            // Multi-threaded background sync (thanks to the connection pool)
+            tokio::task::spawn_blocking(move || {
+                if let Err(e) = db_clone.sync_asset(&sync_asset) {
                     error!("DB Error: {}", e);
                 }
             });
