@@ -2,7 +2,7 @@ use pcap::{Capture, Device};
 use etherparse::{PacketHeaders, NetHeaders, LinkHeader, EtherType, TransportHeader, Icmpv6Type};
 use crate::domain::models::Asset;
 use chrono::Utc;
-use tracing::{warn, error, info};
+use tracing::{warn, error, info, debug};
 use mac_oui::Oui;
 use tokio::sync::mpsc;
 use std::net::Ipv6Addr;
@@ -24,7 +24,10 @@ struct RawDiscovery {
 impl Sniffer {
     pub fn new(interface: String) -> Self {
         let oui_db = match Oui::default() {
-            Ok(db) => Some(db),
+            Ok(db) => {
+                debug!("OUI database loaded successfully.");
+                Some(db)
+            },
             Err(e) => {
                 error!("Failed to load OUI database: {}. Manufacturer detection disabled.", e);
                 None
@@ -33,19 +36,13 @@ impl Sniffer {
         Sniffer { interface, oui_db }
     }
 
-    fn is_private_ip(ip: &[u8]) -> bool {
-        if ip.len() == 4 {
-            match ip {
-                [10, _, _, _] => true,
-                [172, b, _, _] if *b >= 16 && *b <= 31 => true,
-                [192, 168, _, _] => true,
-                [169, 254, _, _] => true,
-                _ => false,
-            }
-        } else if ip.len() == 16 {
-            ip[0] == 0xfe && (ip[1] & 0xc0) == 0x80 || (ip[0] & 0xfe) == 0xfc
-        } else {
-            false
+    fn is_private_ip(ip: [u8; 4]) -> bool {
+        match ip {
+            [10, _, _, _] => true,
+            [172, b, _, _] if b >= 16 && b <= 31 => true,
+            [192, 168, _, _] => true,
+            [169, 254, _, _] => true,
+            _ => false,
         }
     }
 
@@ -122,6 +119,8 @@ impl Sniffer {
             };
 
             if let Some(discovery) = self.process_packet(&packet.data) {
+                debug!("Packet matched discovery rules: {:?}", discovery);
+                
                 let asset = Asset {
                     mac_address: discovery.mac.clone(),
                     ip_address: discovery.ip,
@@ -133,7 +132,6 @@ impl Sniffer {
                     last_seen_at: Utc::now(),
                 };
                 
-                // Use try_send to avoid blocking the sniffer if the DB is overwhelmed
                 if let Err(e) = tx.try_send(asset) {
                     match e {
                         mpsc::error::TrySendError::Full(_) => {
@@ -166,7 +164,7 @@ impl Sniffer {
 
         if eth.ether_type == EtherType::ARP && data.len() >= 42 {
             let psrc = &data[28..32];
-            if Self::is_private_ip(psrc) {
+            if Self::is_private_ip([psrc[0], psrc[1], psrc[2], psrc[3]]) {
                 return Some(RawDiscovery {
                     mac: src_mac,
                     ip: format!("{}.{}.{}.{}", psrc[0], psrc[1], psrc[2], psrc[3]),

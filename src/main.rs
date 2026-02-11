@@ -9,7 +9,7 @@ use storage::database::Database;
 use network::sniffer::Sniffer;
 use std::{process, sync::Arc};
 use tokio::sync::mpsc;
-use tracing::{error, info};
+use tracing::{error, info, debug};
 use tracing_subscriber;
 use chrono::{DateTime, Utc, Duration};
 use comfy_table::Table;
@@ -19,6 +19,7 @@ use dashmap::DashMap;
 async fn main() {
     let args = Cli::parse();
 
+    // Initialize logging
     let subscriber = tracing_subscriber::fmt()
         .with_max_level(if args.verbose {
             tracing::Level::DEBUG
@@ -66,6 +67,7 @@ async fn main() {
             error!("Failed to reset database: {}", e);
             process::exit(1);
         }
+        info!("Database reset complete.");
         process::exit(0);
     }
 
@@ -76,7 +78,6 @@ async fn main() {
 
     info!("Starting FieldWatcher...");
 
-    // Increased capacity for high-traffic discovery
     let (tx, mut rx) = mpsc::channel(1000);
 
     let interfaces: Vec<String> = args.interface.split_whitespace().map(|s| s.to_string()).collect();
@@ -88,9 +89,10 @@ async fn main() {
         });
     }
 
-    // High-performance concurrent cache (MAC -> (LastSync, LastIP, LastHostname, LastMethod))
     let throttle_cache: Arc<DashMap<String, (DateTime<Utc>, String, Option<String>, String)>> = Arc::new(DashMap::new());
     let throttle_duration = Duration::seconds(10);
+
+    info!("Monitoring for hosts in real-time...");
 
     while let Some(asset) = rx.recv().await {
         let mac = asset.mac_address.clone();
@@ -112,9 +114,6 @@ async fn main() {
         };
 
         if should_sync {
-            let db_clone = Arc::clone(&db);
-            let cache_clone = Arc::clone(&throttle_cache);
-            
             // Re-check/preserve hostname from cache if current is None
             let final_hostname = if hostname.is_none() {
                 throttle_cache.get(&mac).and_then(|e| e.value().2.clone())
@@ -122,16 +121,23 @@ async fn main() {
                 hostname
             };
 
-            cache_clone.insert(mac, (now, ip, final_hostname.clone(), method));
+            if args.verbose {
+                info!("Syncing: {} ({}) via {} VLAN: {} Hostname: {:?}", ip, mac, method, asset.vlan_id, final_hostname);
+            }
+
+            throttle_cache.insert(mac, (now, ip, final_hostname.clone(), method));
             
             let mut sync_asset = asset.clone();
             sync_asset.hostname = final_hostname;
 
+            let db_clone = Arc::clone(&db);
             tokio::task::spawn_blocking(move || {
                 if let Err(e) = db_clone.sync_asset(&sync_asset) {
                     error!("DB Error: {}", e);
                 }
             });
+        } else if args.verbose {
+            debug!("Throttled: {} ({})", ip, mac);
         }
     }
 }
