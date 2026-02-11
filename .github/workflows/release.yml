@@ -1,0 +1,79 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            artifact_name: field_watcher
+            asset_name: field_watcher-linux-amd64
+          - os: macos-latest
+            artifact_name: field_watcher
+            asset_name: field_watcher-macos-universal
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcap-dev
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build (Linux/macOS)
+        run: cargo build --release
+
+      - name: Prepare binary (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: mv target/release/${{ matrix.artifact_name }} ${{ matrix.asset_name }}
+
+      - name: Prepare binary (macOS Universal)
+        if: matrix.os == 'macos-latest'
+        run: |
+          # Note: macos-latest builder is usually arm64. 
+          # To make a universal binary we'd need to cross-compile to x86_64 too.
+          # For now, we provide the native binary of the runner.
+          mv target/release/${{ matrix.artifact_name }} ${{ matrix.asset_name }}
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: ${{ matrix.asset_name }}
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
