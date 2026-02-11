@@ -21,27 +21,27 @@ This document outlines the strategy for migrating the `field_watcher` project fr
     - [x] Database cleanup logic.
 
 ## Phase 3: Network Sniffing (Core Logic)
-- [ ] **Sniffer Implementation**: Use `pcap` or `libpnet` to capture network packets.
-    - [ ] Implement ARP packet handling (Asset discovery).
-    - [ ] Implement TCP/UDP/ICMP packet handling (Connection tracking).
+- [x] **Sniffer Implementation**: Use `pcap` or `libpnet` to capture network packets.
+    - [x] Implement ARP packet handling (Asset discovery).
+    - [x] Implement TCP/UDP/ICMP packet handling (Connection tracking).
     - [ ] Implement NetBIOS/NBTDatagram parsing (Hostname discovery).
-- [ ] **MAC Vendor Lookup**: Port or integrate a MAC address vendor lookup library (e.g., `mac_address` crate or custom OUI database).
-- [ ] **IP Logic**: Implement private IP range checks.
+- [x] **MAC Vendor Lookup**: Port or integrate a MAC address vendor lookup library (e.g., `mac_address` crate or custom OUI database).
+- [x] **IP Logic**: Implement private IP range checks.
 
 ## Phase 4: Integration & Concurrency
-- [ ] **Async Runtime**: Use `tokio` for managing the main loop and async tasks.
-- [ ] **API Client**: Implement the `ApiManager` using `reqwest` to sync data with the cloud.
-- [ ] **Main Loop**: Implement the periodic sniffing and syncing loop.
+- [x] **Async Runtime**: Use `tokio` for managing the main loop and async tasks.
+- [x] **API Client**: Implement the `ApiManager` using `reqwest` to sync data with the cloud.
+- [x] **Main Loop**: Implement the periodic sniffing and syncing loop.
 
 ## Phase 5: Utilities & Quality Assurance
-- [ ] **Database Reset**: Implement the reset functionality (clearing SQLite and potentially external systems like OpenSearch).
+- [x] **Database Reset**: Implement the reset functionality (clearing SQLite and potentially external systems like OpenSearch).
 - [ ] **Testing**: Write unit tests for packet parsing and database operations.
 - [ ] **Performance Tuning**: Optimize packet processing to handle higher traffic.
 
 ## Phase 6: Deployment & Cleanup
 - [ ] **Cross-compilation**: Set up builds for target architectures.
-- [ ] **Documentation**: Update `README.md` with Rust-specific instructions.
-- [ ] **Legacy Deletion**: Once the Rust version is stable, remove the Python code from the `main` branch (keeping it in `v1`).
+- [x] **Documentation**: Update `README.md` with Rust-specific instructions.
+- [x] **Legacy Deletion**: Once the Rust version is stable, remove the Python code from the `main` branch (keeping it in `v1`).
 
 ---
 

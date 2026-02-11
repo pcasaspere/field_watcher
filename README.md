@@ -1,94 +1,56 @@
-# Bruma
-Bruma és una suite de ciberseguretat potent i elegant que proporciona visibilitat total de la teva xarxa:
+# Field Watcher (Rust)
 
-🔍 Field-Watcher: El teu radar digital que detecta i registra automàticament tots els dispositius i les seves interaccions
+Field Watcher is a network sensor that sniffs traffic on specified interfaces, identifies assets (via ARP and other protocols), and tracks connections. Captured data is stored in a local SQLite database and can be synchronized with a remote API.
 
-🛡️ Suricata: El guardià incansable que identifica amenaces i comportaments sospitosos en temps real
+This project was migrated from Python to Rust for improved performance and safety.
 
-📡 FluentBit: El missatger eficient que canalitza les alertes cap a un sistema centralitzat d'anàlisi
+## Requirements
 
-📊 Grafana: El teu panell de control personalitzable que converteix les dades en informació accionable
+- Rust (latest stable)
+- `libpcap` development headers (e.g., `libpcap-dev` on Debian/Ubuntu)
+- Root/Administrator privileges (for packet sniffing)
 
-Tot integrat en una solució completa per mantenir la teva xarxa segura i sota control.
-
-
-
-
-## General configuration
-```bash
-# /etc/sysconfig/suricata
-OPTIONS="-i enp0s8 --user suricata "
-
-systemctl daemon-reload
-systemctl restart suricata
-```
-
-## Field-Watcher
-> /etc/systemd/system/atendata-field-watcher.service
-```bash
-[Unit]
-Description=Atendata Field Watcher
-After=multi-user.target
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/opt/bruma
-Restart=always
-RestartSec=5
-StandardError=append:/var/log/field-watcher.error
-ExecStart=/opt/bruma/venv/bin/python3 /opt/bruma/field-watcher.py --config /opt/bruma/config.yaml
-
-[Install]
-WantedBy=multi-user.target
-```
-
-> crontab
-```bash
-0 6 * * * /opt/bruma/venv/bin/python3 /opt/bruma/field-watcher.py --config=/opt/bruma/config.yaml --clean-connection=1 &> /dev/null
-```
-
-
-
-## Suricata
-### Rule list
-
-et/open
-tgreen/hunting
-stamus/lateral
+## Installation
 
 ```bash
-suricata-update enable-source et/open
-suricata-update enable-source tgreen/hunting
-suricata-update enable-source stamus/lateral
-suricata-update enable sslbl/ja3-fingerprints
-suricata-update enable sslbl/ssl-fp-blacklist
-
-suricata-update --suricata-conf /etc/suricata/suricata.yaml --disable-conf /etc/suricata/disable.conf --no-test
+cargo build --release
 ```
 
+The binary will be available at `target/release/field_watcher`.
 
+## Configuration
 
-## Grafana
-Afegir connectors de `sqlite` y `opensearch`.
-- En SQLite tindrem la ddbb a /tmp/database.db
+Copy the example configuration and edit it:
 
-
-### Queries examples
-**filter between dates**
-```sql
-SELECT
-  unixepoch(datetime) as time,
-  $__from / 1000 as __from,
-  $__to / 1000 as __to,
-  source_ip,
-  source_port,
-  destination_ip,
-  destination_port,
-  protocol,
-  application
-FROM connections
-WHERE time BETWEEN ($__from / 1000) AND ($__to / 1000)
-ORDER BY
-  datetime DESC
+```bash
+cp legacy/config.example.yaml config.yaml
 ```
+
+## Usage
+
+```bash
+# Run with default config.yaml
+sudo ./target/release/field_watcher
+
+# Run with custom config and verbose output
+sudo ./target/release/field_watcher --config my_config.yaml --verbose
+
+# Run and sync data to the API
+sudo ./target/release/field_watcher --use-api
+
+# Reset the database
+sudo ./target/release/field_watcher --reset
+```
+
+### Options
+
+- `--config <PATH>`: Path to the YAML configuration file (default: `config.yaml`).
+- `--use-api`: Enable synchronization of captured data to the configured API endpoint.
+- `--reset`: Clear the local SQLite database and other configured external systems.
+- `--clean-connections <DAYS>`: Remove connections older than the specified number of days (default: 30).
+- `--verbose`: Enable detailed logging.
+- `--help`: Show help information.
+
+## Legacy Code
+
+The original Python implementation is available in the `legacy/` directory and preserved in the `v1` branch.
