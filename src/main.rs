@@ -1,12 +1,10 @@
 mod cli;
-mod config;
 mod domain;
 mod network;
 mod storage;
 
 use cli::Cli;
 use clap::Parser;
-use config::Config;
 use storage::database::Database;
 use network::sniffer::Sniffer;
 use std::process;
@@ -30,20 +28,11 @@ async fn main() {
 
     info!("Starting FieldWatcher (Offline Mode)...");
 
-    // Load configuration
-    let config = match Config::load(&args.config) {
-        Ok(cfg) => cfg,
-        Err(e) => {
-            error!("Failed to load config file '{}': {}", args.config, e);
-            process::exit(1);
-        }
-    };
-
     // Initialize Database
-    let db = match Database::new(&config.database.path) {
+    let db = match Database::new(&args.db_path) {
         Ok(database) => database,
         Err(e) => {
-            error!("Failed to initialize database at '{}': {}", config.database.path, e);
+            error!("Failed to initialize database at '{}': {}", args.db_path, e);
             process::exit(1);
         }
     };
@@ -64,34 +53,42 @@ async fn main() {
         process::exit(0);
     }
 
+    // If clean_connections is called explicitly via args or we want to run it once
+    // Note: in the previous logic it was an early exit if not 30. 
+    // Let's keep the logic but maybe make it more flexible later.
     if args.clean_connections != 30 {
          info!("Cleaning connections older than {} days...", args.clean_connections);
          match db.clean_connections(args.clean_connections as i64) {
-             Ok(deleted) => info!("Removed {} connections.", deleted),
-             Err(e) => error!("Failed to clean connections: {}", e),
+             Ok(deleted) => {
+                 info!("Removed {} connections.", deleted);
+                 process::exit(0);
+             },
+             Err(e) => {
+                 error!("Failed to clean connections: {}", e);
+                 process::exit(1);
+             }
          }
-         process::exit(0);
     }
 
-    info!("Interface(s): {}", config.sniffer.interface);
-    info!("Network: {}", config.sniffer.network);
-    info!("Database path: {}", config.database.path);
+    info!("Interface(s): {}", args.interface);
+    info!("Network: {}", args.network);
+    info!("Database path: {}", args.db_path);
 
-    let interfaces: Vec<&str> = config.sniffer.interface.split_whitespace().collect();
+    let interfaces: Vec<&str> = args.interface.split_whitespace().collect();
     let sniff_timeout = if args.verbose { 5 } else { 60 };
 
     loop {
         for &iface in &interfaces {
             info!("Sniffing on interface {} for {} seconds...", iface, sniff_timeout);
             
-            let sniffer = Sniffer::new(iface.to_string(), config.sniffer.network.clone());
+            let sniffer = Sniffer::new(iface.to_string(), args.network.clone());
             let (assets, connections) = sniffer.sniff(sniff_timeout);
 
             if args.verbose {
                 info!("Captured {} assets and {} connections on {}", assets.len(), connections.len(), iface);
             }
 
-            // Sync assets to DB using the optimized sync_asset method
+            // Sync assets to DB
             for asset in &assets {
                 if let Err(e) = db.sync_asset(asset) {
                     error!("Failed to sync asset {} to DB: {}", asset.ip_address, e);

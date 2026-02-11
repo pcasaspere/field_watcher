@@ -4,9 +4,17 @@ use clap::Parser;
 #[command(author, version, about, long_about = None)]
 #[command(about = "This script is used to get the sensor data from the network and store it in the database.")]
 pub struct Cli {
-    /// Path to config file
-    #[arg(long, default_value = "config.yaml")]
-    pub config: String,
+    /// Network interface(s) to sniff on (e.g., "eth0" or "eth0 wlan0")
+    #[arg(short, long, env = "FW_INTERFACE")]
+    pub interface: String,
+
+    /// Network range to monitor (e.g., "192.168.1.0/24")
+    #[arg(short, long, env = "FW_NETWORK")]
+    pub network: String,
+
+    /// Path to the SQLite database file
+    #[arg(short, long, default_value = "database.db", env = "FW_DB_PATH")]
+    pub db_path: String,
 
     /// Update utils
     #[arg(long)]

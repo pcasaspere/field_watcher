@@ -1,8 +1,6 @@
 # Field Watcher (Rust)
 
-Field Watcher is a network sensor that sniffs traffic on specified interfaces, identifies assets (via ARP and other protocols), and tracks connections. Captured data is stored in a local SQLite database and can be synchronized with a remote API.
-
-This project was migrated from Python to Rust for improved performance and safety.
+Field Watcher is a network sensor that sniffs traffic on specified interfaces, identifies assets (via ARP and other protocols), and tracks connections. Captured data is stored in a local SQLite database.
 
 ## Requirements
 
@@ -18,38 +16,33 @@ cargo build --release
 
 The binary will be available at `target/release/field_watcher`.
 
-## Configuration
-
-Copy the example configuration and edit it:
-
-```bash
-cp legacy/config.example.yaml config.yaml
-```
-
 ## Usage
 
+All settings are passed via command-line arguments or environment variables.
+
 ```bash
-# Run with default config.yaml
-sudo ./target/release/field_watcher
+# Basic usage
+sudo ./target/release/field_watcher --interface "eth0" --network "192.168.1.0/24"
 
-# Run with custom config and verbose output
-sudo ./target/release/field_watcher --config my_config.yaml --verbose
+# Multiple interfaces
+sudo ./target/release/field_watcher -i "eth0 wlan0" -n "192.168.1.0/24"
 
-# Run and sync data to the API
-sudo ./target/release/field_watcher --use-api
+# Custom database path and verbose output
+sudo ./target/release/field_watcher -i "eth0" -n "192.168.1.0/24" --db-path "my_data.db" --verbose
 
 # Reset the database
-sudo ./target/release/field_watcher --reset
+sudo ./target/release/field_watcher --reset --db-path "my_data.db"
 ```
 
 ### Options
 
-- `--config <PATH>`: Path to the YAML configuration file (default: `config.yaml`).
-- `--use-api`: Enable synchronization of captured data to the configured API endpoint.
-- `--reset`: Clear the local SQLite database and other configured external systems.
+- `-i, --interface <INTERFACE>`: Network interface(s) to sniff on (e.g., "eth0" or "eth0 wlan0"). [Env: `FW_INTERFACE`]
+- `-n, --network <NETWORK>`: Network range to monitor (e.g., "192.168.1.0/24"). [Env: `FW_NETWORK`]
+- `-d, --db-path <DB_PATH>`: Path to the SQLite database file (default: "database.db"). [Env: `FW_DB_PATH`]
+- `--reset`: Clear the local SQLite database.
 - `--clean-connections <DAYS>`: Remove connections older than the specified number of days (default: 30).
 - `--verbose`: Enable detailed logging.
-- `--help`: Show help information.
+- `-h, --help`: Show help information.
 
 ## Legacy Code
 
