@@ -7,11 +7,14 @@ use cli::Cli;
 use clap::Parser;
 use storage::database::Database;
 use network::sniffer::Sniffer;
-use std::process;
-use tracing::{error, info};
+use std::{process, sync::Arc, collections::HashMap};
+use tokio::sync::{mpsc, Mutex};
+use tracing::{error, info, debug};
 use tracing_subscriber;
+use chrono::{DateTime, Utc, Duration};
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let args = Cli::parse();
 
     // Initialize logging
@@ -25,11 +28,11 @@ fn main() {
 
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    info!("Starting FieldWatcher (Host Discovery SPAN mode)...");
+    info!("Starting FieldWatcher (Real-time Discovery mode)...");
 
-    // Initialize Database
+    // Initialize Database wrapped in Arc and Mutex for thread safety
     let db = match Database::new(&args.db_path) {
-        Ok(database) => database,
+        Ok(database) => Arc::new(Mutex::new(database)),
         Err(e) => {
             error!("Failed to initialize database at '{}': {}", args.db_path, e);
             process::exit(1);
@@ -38,7 +41,8 @@ fn main() {
 
     if args.reset {
         info!("Resetting database...");
-        if let Err(e) = db.reset_database() {
+        let db_lock = db.lock().await;
+        if let Err(e) = db_lock.reset_database() {
             error!("Failed to reset database: {}", e);
             process::exit(1);
         }
@@ -46,29 +50,55 @@ fn main() {
         process::exit(0);
     }
 
-    info!("Interface(s): {}", args.interface);
-    info!("Network: {}", args.network);
-    info!("Database path: {}", args.db_path);
+    // Channel for real-time asset discovery
+    let (tx, mut rx) = mpsc::channel(100);
 
-    let interfaces: Vec<&str> = args.interface.split_whitespace().collect();
-    let sniff_timeout = if args.verbose { 5 } else { 60 };
+    // Start Sniffers for each interface in dedicated threads
+    let interfaces: Vec<String> = args.interface.split_whitespace().map(|s| s.to_string()).collect();
+    for iface in interfaces {
+        let sniffer = Sniffer::new(iface, args.network.clone());
+        let tx_clone = tx.clone();
+        
+        // Use spawn_blocking for pcap which is a blocking C library
+        tokio::task::spawn_blocking(move || {
+            sniffer.start(tx_clone);
+        });
+    }
 
-    loop {
-        for &iface in &interfaces {
-            info!("Discovery round on {} ({}s)...", iface, sniff_timeout);
-            
-            let sniffer = Sniffer::new(iface.to_string(), args.network.clone());
-            let assets = sniffer.sniff(sniff_timeout);
+    // Real-time Processor with Throttle Cache
+    let throttle_cache: Arc<Mutex<HashMap<String, (DateTime<Utc>, String)>>> = Arc::new(Mutex::new(HashMap::new()));
+    let throttle_duration = Duration::seconds(10);
 
+    info!("Monitoring for hosts in real-time...");
+
+    while let Some(asset) = rx.recv().await {
+        let mut cache = throttle_cache.lock().await;
+        let now = Utc::now();
+        
+        let should_sync = if let Some((last_sync, last_ip)) = cache.get(&asset.mac_address) {
+            last_ip != &asset.ip_address || (now - *last_sync) > throttle_duration
+        } else {
+            true
+        };
+
+        if should_sync {
             if args.verbose {
-                info!("Identified {} hosts on {}", assets.len(), iface);
+                debug!("Syncing host: {} ({})", asset.ip_address, asset.mac_address);
             }
-
-            for asset in &assets {
-                if let Err(e) = db.sync_asset(asset) {
-                    error!("Failed to sync asset {}: {}", asset.mac_address, e);
+            
+            let db_clone = Arc::clone(&db);
+            let mac = asset.mac_address.clone();
+            let ip = asset.ip_address.clone();
+            
+            cache.insert(mac, (now, ip));
+            
+            // Spawn DB write task
+            tokio::spawn(async move {
+                let db_lock = db_clone.lock().await;
+                if let Err(e) = db_lock.sync_asset(&asset) {
+                    error!("DB Error: {}", e);
                 }
-            }
+            });
         }
     }
 }
