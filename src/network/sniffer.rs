@@ -5,6 +5,7 @@ use chrono::Utc;
 use tracing::{warn, error, info, debug};
 use mac_oui::Oui;
 use tokio::sync::mpsc;
+use std::net::Ipv6Addr;
 
 pub struct Sniffer {
     interface: String,
@@ -22,14 +23,10 @@ struct RawDiscovery {
 
 impl Sniffer {
     pub fn new(interface: String) -> Self {
-        // Trying to load the bundled database
         let oui_db = match Oui::default() {
-            Ok(db) => {
-                debug!("OUI database loaded successfully.");
-                Some(db)
-            },
+            Ok(db) => Some(db),
             Err(e) => {
-                error!("CRITICAL: Failed to load OUI database: {}. Manufacturer detection will not work.", e);
+                error!("Failed to load OUI database: {}. Manufacturer detection disabled.", e);
                 None
             }
         };
@@ -52,50 +49,56 @@ impl Sniffer {
         }
     }
 
-    /// Robust manufacturer lookup
     fn get_vendor(&self, mac: &str) -> Option<String> {
         let db = self.oui_db.as_ref()?;
-        
-        // 1. Try direct lookup with original format
         if let Ok(Some(entry)) = db.lookup_by_mac(mac) {
             return Some(entry.company_name.clone());
         }
-
-        // 2. Try normalized format (first 6 chars, uppercase, no colons)
         let normalized = mac.replace(':', "").to_uppercase();
         if normalized.len() >= 6 {
-            let oui_prefix = &normalized[0..6];
-            if let Ok(Some(entry)) = db.lookup_by_mac(oui_prefix) {
+            if let Ok(Some(entry)) = db.lookup_by_mac(&normalized[0..6]) {
                 return Some(entry.company_name.clone());
             }
         }
-
         None
     }
 
     pub fn start(self, tx: mpsc::Sender<Asset>) {
         let interface_name = self.interface.clone();
-        let device = match Device::list().map(|list| list.into_iter().find(|d| d.name == interface_name)) {
-            Ok(Some(d)) => d,
-            _ => {
-                error!("Device {} not found", interface_name);
+        
+        let devices = match Device::list() {
+            Ok(d) => d,
+            Err(e) => {
+                error!("Failed to list network devices: {}", e);
                 return;
             }
         };
 
-        let mut cap = match Capture::from_device(device)
-            .unwrap()
-            .promisc(true)
-            .snaplen(1024)
-            .buffer_size(2 * 1024 * 1024)
-            .immediate_mode(true)
-            .open() {
-                Ok(c) => c,
-                Err(e) => {
-                    error!("Failed to open device {}: {}", interface_name, e);
-                    return;
-                }
-            };
+        let device = match devices.into_iter().find(|d| d.name == interface_name) {
+            Some(d) => d,
+            None => {
+                error!("Device {} not found in system", interface_name);
+                return;
+            }
+        };
+
+        let mut cap = match Capture::from_device(device) {
+            Ok(c) => match c.promisc(true)
+                .snaplen(1024)
+                .buffer_size(2 * 1024 * 1024)
+                .immediate_mode(true)
+                .open() {
+                    Ok(opened) => opened,
+                    Err(e) => {
+                        error!("Failed to open device {}: {}", interface_name, e);
+                        return;
+                    }
+                },
+            Err(e) => {
+                error!("Failed to prepare capture on {}: {}", interface_name, e);
+                return;
+            }
+        };
 
         let filter = "arp or \
                       (udp port 67 or port 68 or port 53 or port 5353 or port 5355 or port 137) or \
@@ -103,37 +106,41 @@ impl Sniffer {
                       ether proto 0x88cc or ether proto 0x2000";
 
         if let Err(e) = cap.filter(filter, true) {
-             warn!("Failed to set BPF filter: {}", e);
+             warn!("BPF filter error on {}: {}", interface_name, e);
         }
 
-        info!("Specialized sniffer started on {}", interface_name);
+        info!("Sniffer active on {}", interface_name);
 
         loop {
             let packet = match cap.next_packet() {
                 Ok(p) => p,
                 Err(pcap::Error::TimeoutExpired) => continue,
                 Err(e) => {
-                    error!("Capture error: {}", e);
+                    error!("Capture loop error on {}: {}", interface_name, e);
                     break;
                 }
             };
 
             if let Some(discovery) = self.process_packet(&packet.data) {
-                let vendor = self.get_vendor(&discovery.mac);
-                
                 let asset = Asset {
                     mac_address: discovery.mac.clone(),
                     ip_address: discovery.ip,
                     hostname: discovery.hostname,
-                    vendor,
+                    vendor: self.get_vendor(&discovery.mac),
                     vlan_id: discovery.vlan_id,
                     discovery_method: discovery.method,
                     first_seen_at: Utc::now(),
                     last_seen_at: Utc::now(),
                 };
                 
-                if let Err(_) = tx.blocking_send(asset) {
-                    break; 
+                // Use try_send to avoid blocking the sniffer if the DB is overwhelmed
+                if let Err(e) = tx.try_send(asset) {
+                    match e {
+                        mpsc::error::TrySendError::Full(_) => {
+                            warn!("Buffer full on {}: dropping discovery packet", interface_name);
+                        },
+                        mpsc::error::TrySendError::Closed(_) => break,
+                    }
                 }
             }
         }
@@ -157,7 +164,6 @@ impl Sniffer {
         let src_mac = format!("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}", 
             eth.source[0], eth.source[1], eth.source[2], eth.source[3], eth.source[4], eth.source[5]);
 
-        // 1. ARP
         if eth.ether_type == EtherType::ARP && data.len() >= 42 {
             let psrc = &data[28..32];
             if Self::is_private_ip(psrc) {
@@ -171,18 +177,14 @@ impl Sniffer {
             }
         }
 
-        // 2. IPv6 / NDP
         if let Some(NetHeaders::Ipv6(ip6, _)) = &value.net {
             if let Some(TransportHeader::Icmpv6(icmp6)) = &value.transport {
                 match icmp6.icmp_type {
                     Icmpv6Type::NeighborSolicitation | Icmpv6Type::NeighborAdvertisement(_) | Icmpv6Type::RouterAdvertisement(_) => {
+                        let addr = Ipv6Addr::from(ip6.source);
                         return Some(RawDiscovery {
                             mac: src_mac,
-                            ip: format!("{:02X}{:02X}:{:02X}{:02X}:{:02X}{:02X}:{:02X}{:02X}:{:02X}{:02X}:{:02X}{:02X}:{:02X}{:02X}:{:02X}{:02X}", 
-                                ip6.source[0], ip6.source[1], ip6.source[2], ip6.source[3],
-                                ip6.source[4], ip6.source[5], ip6.source[6], ip6.source[7],
-                                ip6.source[8], ip6.source[9], ip6.source[10], ip6.source[11],
-                                ip6.source[12], ip6.source[13], ip6.source[14], ip6.source[15]),
+                            ip: addr.to_string(),
                             method: "NDP".to_string(),
                             hostname: None,
                             vlan_id,
@@ -193,7 +195,6 @@ impl Sniffer {
             }
         }
 
-        // 3. DHCP, DNS, mDNS, LLMNR, NBNS (via UDP)
         if let Some(TransportHeader::Udp(udp)) = &value.transport {
             let mut method = None;
             let mut hostname = None;
@@ -231,7 +232,6 @@ impl Sniffer {
             }
         }
 
-        // 4. CDP / LLDP
         if eth.ether_type == EtherType(0x88CC) || eth.ether_type == EtherType(0x2000) {
             return Some(RawDiscovery {
                 mac: src_mac,
