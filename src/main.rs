@@ -12,6 +12,7 @@ use tokio::sync::{mpsc, Mutex};
 use tracing::{error, info, debug};
 use tracing_subscriber;
 use chrono::{DateTime, Utc, Duration};
+use comfy_table::Table;
 
 #[tokio::main]
 async fn main() {
@@ -28,8 +29,6 @@ async fn main() {
 
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    info!("Starting FieldWatcher (Real-time Discovery mode)...");
-
     // Initialize Database wrapped in Arc and Mutex for thread safety
     let db = match Database::new(&args.db_path) {
         Ok(database) => Arc::new(Mutex::new(database)),
@@ -38,6 +37,30 @@ async fn main() {
             process::exit(1);
         }
     };
+
+    // Handle List Flag
+    if args.list {
+        let db_lock = db.lock().await;
+        match db_lock.get_all_assets() {
+            Ok(assets) => {
+                let mut table = Table::new();
+                table.set_header(vec!["IP Address", "MAC Address", "Vendor", "Hostname", "Last Seen (UTC)"]);
+
+                for asset in assets {
+                    table.add_row(vec![
+                        asset.ip_address,
+                        asset.mac_address,
+                        asset.vendor.unwrap_or_else(|| "Unknown".to_string()),
+                        asset.hostname.unwrap_or_else(|| "-".to_string()),
+                        asset.last_seen_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+                    ]);
+                }
+                println!("{}", table);
+            },
+            Err(e) => error!("Failed to read from database: {}", e),
+        }
+        process::exit(0);
+    }
 
     if args.reset {
         info!("Resetting database...");
@@ -50,6 +73,17 @@ async fn main() {
         process::exit(0);
     }
 
+    // Require interface and network for sniffing
+    if args.interface.is_empty() || args.network.is_empty() {
+        error!("Error: --interface and --network are required for host discovery.");
+        process::exit(1);
+    }
+
+    info!("Starting FieldWatcher (Real-time Discovery mode)...");
+    info!("Interface(s): {}", args.interface);
+    info!("Network: {}", args.network);
+    info!("Database path: {}", args.db_path);
+
     // Channel for real-time asset discovery
     let (tx, mut rx) = mpsc::channel(100);
 
@@ -59,7 +93,6 @@ async fn main() {
         let sniffer = Sniffer::new(iface, args.network.clone());
         let tx_clone = tx.clone();
         
-        // Use spawn_blocking for pcap which is a blocking C library
         tokio::task::spawn_blocking(move || {
             sniffer.start(tx_clone);
         });
@@ -92,7 +125,6 @@ async fn main() {
             
             cache.insert(mac, (now, ip));
             
-            // Spawn DB write task
             tokio::spawn(async move {
                 let db_lock = db_clone.lock().await;
                 if let Err(e) = db_lock.sync_asset(&asset) {

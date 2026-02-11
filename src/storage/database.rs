@@ -15,7 +15,6 @@ impl Database {
     }
 
     fn init_db(&self) -> Result<()> {
-        // We use mac_address as the unique identifier since IPs can change
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS assets (
                 mac_address TEXT PRIMARY KEY,
@@ -47,6 +46,27 @@ impl Database {
             ],
         )?;
         Ok(())
+    }
+
+    pub fn get_all_assets(&self) -> Result<Vec<Asset>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT mac_address, ip_address, hostname, vendor, last_seen_at FROM assets ORDER BY last_seen_at DESC"
+        )?;
+        let asset_iter = stmt.query_map([], |row| {
+            Ok(Asset {
+                mac_address: row.get(0)?,
+                ip_address: row.get(1)?,
+                hostname: row.get(2)?,
+                vendor: row.get(3)?,
+                last_seen_at: row.get(4)?,
+            })
+        })?;
+
+        let mut assets = Vec::new();
+        for asset in asset_iter {
+            assets.push(asset?);
+        }
+        Ok(assets)
     }
 
     pub fn reset_database(&self) -> Result<()> {
