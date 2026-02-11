@@ -23,7 +23,7 @@ async fn main() {
         .with_max_level(if args.verbose {
             tracing::Level::DEBUG
         } else {
-            tracing::Level::INFO
+            tracing::Level::WARN
         })
         .finish();
 
