@@ -44,7 +44,7 @@ async fn main() {
         match db_lock.get_all_assets() {
             Ok(assets) => {
                 let mut table = Table::new();
-                table.set_header(vec!["IP Address", "MAC Address", "Vendor", "VLAN", "First Seen (UTC)", "Last Seen (UTC)"]);
+                table.set_header(vec!["IP Address", "MAC Address", "Vendor", "VLAN", "Hostname", "First Seen (UTC)", "Last Seen (UTC)"]);
 
                 for asset in assets {
                     table.add_row(vec![
@@ -52,6 +52,7 @@ async fn main() {
                         asset.mac_address,
                         asset.vendor.unwrap_or_else(|| "Unknown".to_string()),
                         asset.vlan_id.to_string(),
+                        asset.hostname.unwrap_or_else(|| "-".to_string()),
                         asset.first_seen_at.format("%Y-%m-%d %H:%M:%S").to_string(),
                         asset.last_seen_at.format("%Y-%m-%d %H:%M:%S").to_string(),
                     ]);
@@ -74,15 +75,14 @@ async fn main() {
         process::exit(0);
     }
 
-    // Require interface and network for sniffing
-    if args.interface.is_empty() || args.network.is_empty() {
-        error!("Error: --interface and --network are required for host discovery.");
+    // Require interface for sniffing
+    if args.interface.is_empty() {
+        error!("Error: --interface is required for host discovery.");
         process::exit(1);
     }
 
-    info!("Starting FieldWatcher (Real-time Discovery mode)...");
+    info!("Starting FieldWatcher (Autonomous mode)...");
     info!("Interface(s): {}", args.interface);
-    info!("Network: {}", args.network);
     info!("Database path: {}", args.db_path);
 
     // Channel for real-time asset discovery
@@ -91,7 +91,7 @@ async fn main() {
     // Start Sniffers for each interface in dedicated threads
     let interfaces: Vec<String> = args.interface.split_whitespace().map(|s| s.to_string()).collect();
     for iface in interfaces {
-        let sniffer = Sniffer::new(iface, args.network.clone());
+        let sniffer = Sniffer::new(iface);
         let tx_clone = tx.clone();
         
         tokio::task::spawn_blocking(move || {
@@ -100,7 +100,7 @@ async fn main() {
     }
 
     // Real-time Processor with Throttle Cache
-    let throttle_cache: Arc<Mutex<HashMap<String, (DateTime<Utc>, String)>>> = Arc::new(Mutex::new(HashMap::new()));
+    let throttle_cache: Arc<Mutex<HashMap<String, (DateTime<Utc>, String, Option<String>)>>> = Arc::new(Mutex::new(HashMap::new()));
     let throttle_duration = Duration::seconds(10);
 
     info!("Monitoring for hosts in real-time...");
@@ -109,26 +109,41 @@ async fn main() {
         let mut cache = throttle_cache.lock().await;
         let now = Utc::now();
         
-        let should_sync = if let Some((last_sync, last_ip)) = cache.get(&asset.mac_address) {
-            last_ip != &asset.ip_address || (now - *last_sync) > throttle_duration
+        let (should_sync, _update_hostname) = if let Some((last_sync, last_ip, last_hostname)) = cache.get(&asset.mac_address) {
+            let ip_changed = last_ip != &asset.ip_address;
+            let hostname_new = last_hostname.is_none() && asset.hostname.is_some();
+            let time_passed = (now - *last_sync) > throttle_duration;
+            
+            (ip_changed || hostname_new || time_passed, hostname_new)
         } else {
-            true
+            (true, false)
         };
 
         if should_sync {
             if args.verbose {
-                debug!("Syncing host: {} ({}) VLAN: {}", asset.ip_address, asset.mac_address, asset.vlan_id);
+                debug!("Syncing host: {} ({}) VLAN: {} Hostname: {:?}", asset.ip_address, asset.mac_address, asset.vlan_id, asset.hostname);
             }
             
             let db_clone = Arc::clone(&db);
             let mac = asset.mac_address.clone();
             let ip = asset.ip_address.clone();
+            let hostname = asset.hostname.clone();
             
-            cache.insert(mac, (now, ip));
+            // If we didn't get a hostname in this packet, but we had one in cache, preserve it
+            let final_hostname = if hostname.is_none() {
+                cache.get(&mac).and_then(|(_, _, h)| h.clone())
+            } else {
+                hostname
+            };
+
+            cache.insert(mac, (now, ip, final_hostname.clone()));
             
+            let mut sync_asset = asset.clone();
+            sync_asset.hostname = final_hostname;
+
             tokio::spawn(async move {
                 let db_lock = db_clone.lock().await;
-                if let Err(e) = db_lock.sync_asset(&asset) {
+                if let Err(e) = db_lock.sync_asset(&sync_asset) {
                     error!("DB Error: {}", e);
                 }
             });

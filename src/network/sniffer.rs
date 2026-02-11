@@ -1,5 +1,5 @@
 use pcap::{Capture, Device};
-use etherparse::{PacketHeaders, NetHeaders, LinkHeader, EtherType};
+use etherparse::{PacketHeaders, NetHeaders, LinkHeader, EtherType, TransportHeader};
 use crate::domain::models::Asset;
 use chrono::Utc;
 use tracing::{warn, error, info};
@@ -8,12 +8,11 @@ use tokio::sync::mpsc;
 
 pub struct Sniffer {
     interface: String,
-    network: String,
     oui_db: Option<Oui>,
 }
 
 impl Sniffer {
-    pub fn new(interface: String, network: String) -> Self {
+    pub fn new(interface: String) -> Self {
         let oui_db = match Oui::default() {
             Ok(db) => Some(db),
             Err(e) => {
@@ -21,16 +20,7 @@ impl Sniffer {
                 None
             }
         };
-        Sniffer { interface, network, oui_db }
-    }
-
-    fn is_private_ip(ip: [u8; 4]) -> bool {
-        match ip {
-            [10, _, _, _] => true,
-            [172, b, _, _] if b >= 16 && b <= 31 => true,
-            [192, 168, _, _] => true,
-            _ => false,
-        }
+        Sniffer { interface, oui_db }
     }
 
     fn get_vendor(&self, mac: &str) -> Option<String> {
@@ -51,7 +41,7 @@ impl Sniffer {
         let mut cap = match Capture::from_device(device)
             .unwrap()
             .promisc(true)
-            .snaplen(128)
+            .snaplen(512)
             .buffer_size(1024 * 1024)
             .immediate_mode(true)
             .open() {
@@ -62,12 +52,12 @@ impl Sniffer {
                 }
             };
 
-        let filter = format!("arp or (ip and net {})", self.network);
-        if let Err(e) = cap.filter(&filter, true) {
+        let filter = "arp or ip";
+        if let Err(e) = cap.filter(filter, true) {
              warn!("Failed to set BPF filter '{}': {}", filter, e);
         }
 
-        info!("Real-time sniffer started on {}", interface_name);
+        info!("Autonomous sniffer started on {}", interface_name);
 
         loop {
             let packet = match cap.next_packet() {
@@ -82,9 +72,9 @@ impl Sniffer {
             if let Ok(value) = PacketHeaders::from_ethernet_slice(&packet.data) {
                 let mut mac_opt = None;
                 let mut ip_opt = None;
+                let mut hostname_opt = None;
                 let mut vlan_id: u16 = 1;
 
-                // 0. Extract VLAN ID if present (802.1Q)
                 if let Some(vlan) = value.vlan() {
                     use etherparse::VlanHeader::*;
                     vlan_id = match vlan {
@@ -93,7 +83,6 @@ impl Sniffer {
                     };
                 }
 
-                // 1. Extract MAC from Ethernet Header
                 if let Some(LinkHeader::Ethernet2(eth)) = value.link {
                     let mac_str = format!("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}", 
                         eth.source[0], eth.source[1], eth.source[2], eth.source[3], eth.source[4], eth.source[5]);
@@ -105,33 +94,31 @@ impl Sniffer {
                     if eth.ether_type == EtherType::ARP && packet.data.len() >= 42 {
                         let psrc = &packet.data[28..32];
                         let hwsrc = &packet.data[22..28];
-                        let arp_ip = format!("{}.{}.{}.{}", psrc[0], psrc[1], psrc[2], psrc[3]);
-                        let arp_mac = format!("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}", 
-                            hwsrc[0], hwsrc[1], hwsrc[2], hwsrc[3], hwsrc[4], hwsrc[5]);
-                        
-                        if Self::is_private_ip([psrc[0], psrc[1], psrc[2], psrc[3]]) {
-                            mac_opt = Some(arp_mac);
-                            ip_opt = Some(arp_ip);
-                        }
+                        ip_opt = Some(format!("{}.{}.{}.{}", psrc[0], psrc[1], psrc[2], psrc[3]));
+                        mac_opt = Some(format!("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}", 
+                            hwsrc[0], hwsrc[1], hwsrc[2], hwsrc[3], hwsrc[4], hwsrc[5]));
                     }
                 }
 
                 if ip_opt.is_none() {
                     if let Some(NetHeaders::Ipv4(ipv4, _)) = value.net {
-                        if Self::is_private_ip(ipv4.source) {
-                            ip_opt = Some(format!("{}.{}.{}.{}", ipv4.source[0], ipv4.source[1], ipv4.source[2], ipv4.source[3]));
+                        ip_opt = Some(format!("{}.{}.{}.{}", ipv4.source[0], ipv4.source[1], ipv4.source[2], ipv4.source[3]));
+                        
+                        if let Some(TransportHeader::Udp(udp)) = value.transport {
+                            if udp.destination_port == 5353 || udp.destination_port == 5355 {
+                                hostname_opt = self.extract_hostname_from_dns(value.payload.slice());
+                            }
                         }
                     }
                 }
 
                 if let (Some(mac), Some(ip)) = (mac_opt, ip_opt) {
                     let now = Utc::now();
-                    let vendor = self.get_vendor(&mac);
                     let asset = Asset {
-                        mac_address: mac,
+                        mac_address: mac.clone(),
                         ip_address: ip,
-                        hostname: None,
-                        vendor,
+                        hostname: hostname_opt,
+                        vendor: self.get_vendor(&mac),
                         vlan_id,
                         first_seen_at: now,
                         last_seen_at: now,
@@ -143,5 +130,29 @@ impl Sniffer {
                 }
             }
         }
+    }
+
+    fn extract_hostname_from_dns(&self, payload: &[u8]) -> Option<String> {
+        if payload.len() < 13 { return None; }
+        
+        let mut pos = 12; 
+        while pos < payload.len() {
+            let len = payload[pos] as usize;
+            if len == 0 { break; }
+            pos += 1;
+            
+            if pos + len <= payload.len() {
+                let segment = &payload[pos..pos+len];
+                if let Ok(s) = std::str::from_utf8(segment) {
+                    if s.len() > 2 && s.chars().all(|c| c.is_alphanumeric() || c == '-') {
+                        return Some(s.to_string());
+                    }
+                }
+                pos += len;
+            } else {
+                break;
+            }
+        }
+        None
     }
 }
