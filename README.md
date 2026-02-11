@@ -1,114 +1,64 @@
 # 📡 Field Watcher
 
-**Field Watcher** is a high-performance, autonomous network discovery tool written in Rust. It is specifically engineered for **SPAN/Mirror port** environments where it can passively monitor network traffic to discover and track local hosts in real-time.
+**Field Watcher** is an autonomous network "listener" that automatically discovers every device on your network without ever sending a single packet. It is designed to sit passively on a network port and map out your digital environment in real-time.
 
-By analyzing Layer 2 and Layer 3 discovery protocols, it builds a comprehensive map of your network assets with zero active scanning (no pings, no port scans).
+Think of it as a **silent digital census** for your network.
 
-## ✨ Key Features
+## ✨ Why Field Watcher?
 
--   **🚀 Real-time Discovery**: High-concurrency asynchronous architecture using Tokio and a thread-safe SQLite connection pool.
--   **🤖 Fully Autonomous**: No "target network" configuration required. It observes the wire and identifies every host it sees.
--   **🔍 Protocol Aware**: Prioritizes discovery via:
-    -   **Layer 2**: ARP, NDP, CDP, LLDP (including VLAN ID detection).
-    -   **Layer 3**: DHCP, DNS, mDNS, LLMNR, NBNS.
--   **🎛️ SPAN Optimized**: Tight BPF (Berkeley Packet Filter) integration ensures only minimal, relevant discovery packets are processed, keeping CPU usage extremely low even on busy ports.
--   **📊 Smart Storage**: Uses a MAC-first UPSERT strategy in SQLite (WAL mode) to track host migration across IPs while preserving "First Seen" timestamps.
--   **🔌 Zero Config**: Designed to run via CLI parameters or Environment Variables.
+-   **🕵️ 100% Passive**: It doesn't "scan" or "ping". It just listens to the natural conversations of the network, making it invisible and safe for sensitive environments.
+-   **🤖 Fully Automatic**: You don't need to tell it which network to watch. It figures out the IP ranges, VLANs, and devices on its own.
+-   **🔍 Deep Identification**: It extracts device names, manufacturers (like Apple, Cisco, or Tesla), and tracking their movement across different IP addresses.
+-   **⚡ High Performance**: Designed to handle high-traffic environments (like data center SPAN ports) while using minimal computer resources.
 
-## 🛠️ Requirements
+## 🚀 How it works
 
--   **Rust**: Latest stable version.
--   **libpcap**: Development headers (e.g., `libpcap-dev` on Linux).
--   **Privileges**: Must run as root/sudo to put the interface into promiscuous mode.
-
-## 📦 Installation
-
-```bash
-cargo build --release
-```
-The optimized binary will be available at `./target/release/field_watcher`.
-
-## 🚀 Usage
-
-### Basic Usage Flow
 ```mermaid
-graph LR
-    Wire((Network Wire)) -- SPAN/Mirror Port --> Sniffer[Real-time Sniffer]
-    Sniffer -- BPF Filtered Packets --> Parser{Protocol Parser}
-    Parser -- ARP/DHCP/mDNS... --> Cache[Throttle Cache]
-    Cache -- New or Changed Asset --> DB[(SQLite WAL)]
-    DB -- Query --> CLI[--list table]
+graph TD
+    A[Internet/Network Traffic] -->|SPAN / Mirror Port| B(Field Watcher)
+    B --> C{Smart Extraction}
+    C -->|Identify| D[Hostnames & Models]
+    C -->|Locate| E[IPs & VLANs]
+    C -->|Trace| F[MAC Addresses]
+    D & E & F --> G[(Local Asset Database)]
+    G --> H[Human-Friendly Reports]
 ```
 
-### Real-time Monitoring
-Run the daemon on one or more interfaces:
+## 🛠️ Quick Start
+
+### 1. Run the Watcher
+Start the daemon to begin monitoring your network interfaces:
 
 ```bash
-# Monitor a single interface
-sudo ./target/release/field_watcher --interface "eth0"
+# Watch a single interface
+sudo ./field_watcher --interface "eth0"
 
-# Monitor multiple interfaces simultaneously
-sudo ./target/release/field_watcher -i "eth0 wlan0" --verbose
+# Watch multiple interfaces at once
+sudo ./field_watcher -i "eth0 wlan0"
 ```
 
-### Data Inspection
-View the discovered hosts in a clean, human-readable table:
+### 2. See the Results
+At any time, you can view a clean table of all discovered devices:
 
 ```bash
-./target/release/field_watcher --list
-```
-
-## 🐧 Deployment: Running as a Daemon (Rocky Linux)
-
-To run Field Watcher as a background service on Rocky Linux (or any systemd-based distro):
-
-1. **Build the binary**: `cargo build --release`
-2. **Move to system path**: `sudo cp target/release/field_watcher /usr/local/bin/`
-3. **Create a service file**: `sudo nano /etc/systemd/system/field-watcher.service`
-
-```ini
-[Unit]
-Description=Field Watcher Discovery Daemon
-After=network.target
-
-[Service]
-Type=simple
-# Required for packet capture
-User=root
-ExecStart=/usr/local/bin/field_watcher --interface "eth0" --db-path "/var/lib/field_watcher/assets.db"
-Restart=always
-RestartSec=5
-# Optional: Ensure directory exists
-RuntimeDirectory=field_watcher
-
-[Install]
-WantedBy=multi-user.target
-```
-
-4. **Enable and start**:
-```bash
-sudo mkdir -p /var/lib/field_watcher
-sudo systemctl daemon-reload
-sudo systemctl enable --now field-watcher
-sudo systemctl status field-watcher
+./field_watcher --list
 ```
 
 ## ⚙️ Options
 
-| Option | Environment Variable | Description |
-| :--- | :--- | :--- |
-| `-i, --interface` | `FW_INTERFACE` | Network interface(s) to sniff on (e.g., "eth0" or "eth0 wlan0"). |
-| `-d, --db-path` | `FW_DB_PATH` | Path to the SQLite database (default: `database.db`). |
-| `--list` | - | Display all discovered hosts in a formatted table and exit. |
-| `--reset` | - | Clear all data from the database and exit. |
-| `--verbose` | - | Enable detailed DEBUG logs. |
+| Option | Description |
+| :--- | :--- |
+| `-i, --interface` | Which network cards to listen on (e.g., `eth0`). |
+| `-d, --db-path` | Where to save the discovered data. |
+| `--list` | Show the table of all found devices and exit. |
+| `--reset` | Delete all stored data and start fresh. |
+| `--verbose` | Show detailed activity logs while running. |
 
-## 📐 Architecture
+## 📦 Installation
 
--   **`src/domain`**: Business logic and Asset models.
--   **`src/network`**: Highly-optimized Sniffer with protocol-specific heuristics.
--   **`src/storage`**: Concurrent SQLite wrapper with `r2d2` connection pooling and WAL mode.
--   **`src/cli`**: Command-line interface and environment variable mapping.
+1.  Ensure you have **libpcap** installed on your system.
+2.  Build the project: `cargo build --release`.
+3.  The binary will be ready at `./target/release/field_watcher`.
 
-## 📜 Legacy
-The original Python implementation is archived in the `legacy/` directory and preserved in the `v1` branch for historical reference.
+---
+*Created with ❤️ for network visibility.*
