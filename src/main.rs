@@ -9,7 +9,7 @@ use storage::database::Database;
 use network::sniffer::Sniffer;
 use std::{process, sync::Arc};
 use tokio::sync::mpsc;
-use tracing::{error, info, debug};
+use tracing::{error, info};
 use tracing_subscriber;
 use chrono::{DateTime, Utc, Duration};
 use comfy_table::Table;

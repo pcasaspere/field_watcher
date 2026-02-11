@@ -2,7 +2,7 @@ use pcap::{Capture, Device};
 use etherparse::{PacketHeaders, NetHeaders, LinkHeader, EtherType, TransportHeader, Icmpv6Type};
 use crate::domain::models::Asset;
 use chrono::Utc;
-use tracing::{warn, error, info, debug};
+use tracing::{warn, error, info};
 use mac_oui::Oui;
 use tokio::sync::mpsc;
 use std::net::Ipv6Addr;
