@@ -44,14 +44,15 @@ async fn main() {
         match db_lock.get_all_assets() {
             Ok(assets) => {
                 let mut table = Table::new();
-                table.set_header(vec!["IP Address", "MAC Address", "Vendor", "Hostname", "Last Seen (UTC)"]);
+                table.set_header(vec!["IP Address", "MAC Address", "Vendor", "VLAN", "First Seen (UTC)", "Last Seen (UTC)"]);
 
                 for asset in assets {
                     table.add_row(vec![
                         asset.ip_address,
                         asset.mac_address,
                         asset.vendor.unwrap_or_else(|| "Unknown".to_string()),
-                        asset.hostname.unwrap_or_else(|| "-".to_string()),
+                        asset.vlan_id.to_string(),
+                        asset.first_seen_at.format("%Y-%m-%d %H:%M:%S").to_string(),
                         asset.last_seen_at.format("%Y-%m-%d %H:%M:%S").to_string(),
                     ]);
                 }
@@ -116,7 +117,7 @@ async fn main() {
 
         if should_sync {
             if args.verbose {
-                debug!("Syncing host: {} ({})", asset.ip_address, asset.mac_address);
+                debug!("Syncing host: {} ({}) VLAN: {}", asset.ip_address, asset.mac_address, asset.vlan_id);
             }
             
             let db_clone = Arc::clone(&db);

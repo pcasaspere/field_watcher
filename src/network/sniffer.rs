@@ -82,7 +82,18 @@ impl Sniffer {
             if let Ok(value) = PacketHeaders::from_ethernet_slice(&packet.data) {
                 let mut mac_opt = None;
                 let mut ip_opt = None;
+                let mut vlan_id: u16 = 1;
 
+                // 0. Extract VLAN ID if present (802.1Q)
+                if let Some(vlan) = value.vlan() {
+                    use etherparse::VlanHeader::*;
+                    vlan_id = match vlan {
+                        Single(v) => v.vlan_id.into(),
+                        Double(v) => v.outer.vlan_id.into(),
+                    };
+                }
+
+                // 1. Extract MAC from Ethernet Header
                 if let Some(LinkHeader::Ethernet2(eth)) = value.link {
                     let mac_str = format!("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}", 
                         eth.source[0], eth.source[1], eth.source[2], eth.source[3], eth.source[4], eth.source[5]);
@@ -114,13 +125,16 @@ impl Sniffer {
                 }
 
                 if let (Some(mac), Some(ip)) = (mac_opt, ip_opt) {
+                    let now = Utc::now();
                     let vendor = self.get_vendor(&mac);
                     let asset = Asset {
                         mac_address: mac,
                         ip_address: ip,
                         hostname: None,
                         vendor,
-                        last_seen_at: Utc::now(),
+                        vlan_id,
+                        first_seen_at: now,
+                        last_seen_at: now,
                     };
                     
                     if let Err(_) = tx.blocking_send(asset) {

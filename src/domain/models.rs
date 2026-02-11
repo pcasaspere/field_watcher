@@ -7,5 +7,7 @@ pub struct Asset {
     pub mac_address: String,
     pub hostname: Option<String>,
     pub vendor: Option<String>,
+    pub vlan_id: u16,
     pub last_seen_at: DateTime<Utc>,
+    pub first_seen_at: DateTime<Utc>,
 }
