@@ -1,5 +1,7 @@
 config.yaml
 database.db
+database.db-shm
+database.db-wal
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
