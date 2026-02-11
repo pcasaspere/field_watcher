@@ -31,6 +31,11 @@ impl Database {
         )?;
 
         self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_assets_mac ON assets(mac_address)",
+            [],
+        )?;
+
+        self.conn.execute(
             "CREATE TABLE IF NOT EXISTS connections (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 datetime DATETIME,
@@ -49,10 +54,47 @@ impl Database {
         Ok(())
     }
 
-    pub fn add_asset(&self, asset: &Asset) -> Result<()> {
+    /// Syncs an asset by checking if it already exists by MAC address or IP.
+    /// Priority:
+    /// 1. If MAC exists, update the record (even if IP changed).
+    /// 2. If IP exists (but MAC is different or not found), update that record.
+    /// 3. Otherwise, insert a new record.
+    pub fn sync_asset(&self, asset: &Asset) -> Result<()> {
+        // Try to find by MAC first (most stable identifier)
+        let mut mac_found = false;
+        if let Some(mac) = &asset.mac_address {
+            let mut stmt = self.conn.prepare("SELECT ip_address FROM assets WHERE mac_address = ?")?;
+            let mut rows = stmt.query(params![mac])?;
+            if let Some(row) = rows.next()? {
+                let existing_ip: String = row.get(0)?;
+                mac_found = true;
+                
+                // If the IP has changed, we need to handle the PK update or deletion of the old record
+                if existing_ip != asset.ip_address {
+                    // Delete old record with the same MAC but different IP to avoid conflicts
+                    // when we insert/replace with the new IP.
+                    self.conn.execute("DELETE FROM assets WHERE mac_address = ?", params![mac])?;
+                    mac_found = false; // Treat as a fresh insert to the new IP
+                } else {
+                    // Same IP and MAC, just update details
+                    self.update_asset_by_ip(asset)?;
+                    return Ok(());
+                }
+            }
+        }
+
+        if !mac_found {
+            // Use INSERT OR REPLACE on the ip_address PRIMARY KEY
+            self.add_asset(asset)?;
+        }
+
+        Ok(())
+    }
+
+    fn add_asset(&self, asset: &Asset) -> Result<()> {
         self.conn.execute(
-            "INSERT OR REPLACE INTO assets (ip_address, mac_address, hostname, os_name, vendor, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+            "INSERT OR REPLACE INTO assets (ip_address, mac_address, hostname, os_name, vendor, last_seen_at, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
             params![
                 asset.ip_address,
                 asset.mac_address,
@@ -64,7 +106,7 @@ impl Database {
         Ok(())
     }
 
-    pub fn update_asset_by_ip(&self, asset: &Asset) -> Result<()> {
+    fn update_asset_by_ip(&self, asset: &Asset) -> Result<()> {
         self.conn.execute(
             "UPDATE assets SET mac_address = ?, hostname = ?, os_name = ?, vendor = ?, last_seen_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE ip_address = ?",
             params![
@@ -78,24 +120,7 @@ impl Database {
         Ok(())
     }
 
-    pub fn update_asset_by_mac(&self, asset: &Asset) -> Result<()> {
-        self.conn.execute(
-            "UPDATE assets SET ip_address = ?, hostname = ?, os_name = ?, vendor = ?, last_seen_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE mac_address = ?",
-            params![
-                asset.ip_address,
-                asset.hostname,
-                asset.os_name,
-                asset.vendor,
-                asset.mac_address,
-            ],
-        )?;
-        Ok(())
-    }
-
     pub fn add_many_connections(&self, connections: &[Connection]) -> Result<()> {
-        // We use a transaction for batch insertion performance
-        // This is a synchronous implementation as rusqlite is synchronous.
-        // We might want to move this to a worker thread if it blocks too long in an async context.
         let mut stmt = self.conn.prepare(
             "INSERT INTO connections (datetime, source_ip, source_port, destination_ip, destination_port, protocol, application, created_at, updated_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"

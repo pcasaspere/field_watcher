@@ -91,9 +91,9 @@ async fn main() {
                 info!("Captured {} assets and {} connections on {}", assets.len(), connections.len(), iface);
             }
 
-            // Sync assets to DB
+            // Sync assets to DB using the optimized sync_asset method
             for asset in &assets {
-                if let Err(e) = db.add_asset(asset) {
+                if let Err(e) = db.sync_asset(asset) {
                     error!("Failed to sync asset {} to DB: {}", asset.ip_address, e);
                 }
             }
