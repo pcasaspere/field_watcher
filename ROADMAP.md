@@ -13,12 +13,12 @@ This document outlines the strategy for migrating the `field_watcher` project fr
 - [x] **Logging**: Set up structured logging using `tracing` or `env_logger`.
 
 ## Phase 2: Data Model & Storage
-- [ ] **Data Objects**: Define `Asset` and `Connection` structs with `serde` support.
-- [ ] **Database Layer**: Implement SQLite storage using `rusqlite` or `sqlx`.
-    - [ ] Schema migration/initialization.
-    - [ ] Asset CRUD operations (Insert, Update by IP/MAC).
-    - [ ] Connection batch insertion.
-    - [ ] Database cleanup logic.
+- [x] **Data Objects**: Define `Asset` and `Connection` structs with `serde` support.
+- [x] **Database Layer**: Implement SQLite storage using `rusqlite` or `sqlx`.
+    - [x] Schema migration/initialization.
+    - [x] Asset CRUD operations (Insert, Update by IP/MAC).
+    - [x] Connection batch insertion.
+    - [x] Database cleanup logic.
 
 ## Phase 3: Network Sniffing (Core Logic)
 - [ ] **Sniffer Implementation**: Use `pcap` or `libpnet` to capture network packets.
