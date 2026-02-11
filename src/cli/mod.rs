@@ -2,15 +2,11 @@ use clap::Parser;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
-#[command(about = "This script is used to get the sensor data from the network and store it in the database and optionally push it to the cloud.")]
+#[command(about = "This script is used to get the sensor data from the network and store it in the database.")]
 pub struct Cli {
     /// Path to config file
     #[arg(long, default_value = "config.yaml")]
     pub config: String,
-
-    /// Use API to sync data
-    #[arg(long)]
-    pub use_api: bool,
 
     /// Update utils
     #[arg(long)]

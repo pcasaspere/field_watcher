@@ -9,7 +9,6 @@ use clap::Parser;
 use config::Config;
 use storage::database::Database;
 use network::sniffer::Sniffer;
-use network::api::ApiManager;
 use std::process;
 use tracing::{error, info};
 use tracing_subscriber;
@@ -29,7 +28,7 @@ async fn main() {
 
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    info!("Starting FieldWatcher...");
+    info!("Starting FieldWatcher (Offline Mode)...");
 
     // Load configuration
     let config = match Config::load(&args.config) {
@@ -49,23 +48,9 @@ async fn main() {
         }
     };
 
-    // Initialize API if requested
-    let api_manager = if args.use_api {
-        match ApiManager::new(&config) {
-            Some(manager) => Some(manager),
-            None => {
-                error!("API usage requested but endpoint or token missing in config");
-                process::exit(1);
-            }
-        }
-    } else {
-        None
-    };
-
     // Handle special flags that exit early
     if args.update {
         info!("Updating mac vendors...");
-        // mac_oui has its own DB, but we could trigger an update if it supported it.
         process::exit(0);
     }
 
@@ -99,8 +84,6 @@ async fn main() {
         for &iface in &interfaces {
             info!("Sniffing on interface {} for {} seconds...", iface, sniff_timeout);
             
-            // Note: Sniffer::sniff is synchronous (blocking) because of pcap
-            // We run it in a loop, processing one interface at a time.
             let sniffer = Sniffer::new(iface.to_string(), config.sniffer.network.clone());
             let (assets, connections) = sniffer.sniff(sniff_timeout);
 
@@ -108,32 +91,17 @@ async fn main() {
                 info!("Captured {} assets and {} connections on {}", assets.len(), connections.len(), iface);
             }
 
-            // Sync assets
+            // Sync assets to DB
             for asset in &assets {
                 if let Err(e) = db.add_asset(asset) {
                     error!("Failed to sync asset {} to DB: {}", asset.ip_address, e);
                 }
             }
 
-            // Sync connections
+            // Sync connections to DB
             if !connections.is_empty() {
                 if let Err(e) = db.add_many_connections(&connections) {
                     error!("Failed to sync connections to DB: {}", e);
-                }
-            }
-
-            // Sync to API
-            if let Some(api) = &api_manager {
-                if !assets.is_empty() {
-                    if let Err(e) = api.sync(&assets).await {
-                        error!("Failed to sync assets to API: {}", e);
-                    }
-                }
-                
-                if !connections.is_empty() {
-                    if let Err(e) = api.sync(&connections).await {
-                        error!("Failed to sync connections to API: {}", e);
-                    }
                 }
             }
         }

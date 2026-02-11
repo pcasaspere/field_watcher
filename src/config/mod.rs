@@ -4,15 +4,8 @@ use std::path::Path;
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
-    pub api: ApiConfig,
     pub sniffer: SnifferConfig,
     pub database: DatabaseConfig,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ApiConfig {
-    pub endpoint: Option<String>,
-    pub token: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
