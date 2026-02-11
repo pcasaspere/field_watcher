@@ -2,7 +2,7 @@ use pcap::{Capture, Device};
 use etherparse::{PacketHeaders, NetHeaders, LinkHeader, EtherType, TransportHeader, Icmpv6Type};
 use crate::domain::models::Asset;
 use chrono::Utc;
-use tracing::{warn, error, info};
+use tracing::{warn, error, info, debug};
 use mac_oui::Oui;
 use tokio::sync::mpsc;
 
@@ -22,10 +22,14 @@ struct RawDiscovery {
 
 impl Sniffer {
     pub fn new(interface: String) -> Self {
+        // Trying to load the bundled database
         let oui_db = match Oui::default() {
-            Ok(db) => Some(db),
+            Ok(db) => {
+                debug!("OUI database loaded successfully.");
+                Some(db)
+            },
             Err(e) => {
-                warn!("Failed to load OUI database: {}", e);
+                error!("CRITICAL: Failed to load OUI database: {}. Manufacturer detection will not work.", e);
                 None
             }
         };
@@ -48,8 +52,25 @@ impl Sniffer {
         }
     }
 
+    /// Robust manufacturer lookup
     fn get_vendor(&self, mac: &str) -> Option<String> {
-        self.oui_db.as_ref()?.lookup_by_mac(mac).ok().flatten().map(|e| e.company_name.clone())
+        let db = self.oui_db.as_ref()?;
+        
+        // 1. Try direct lookup with original format
+        if let Ok(Some(entry)) = db.lookup_by_mac(mac) {
+            return Some(entry.company_name.clone());
+        }
+
+        // 2. Try normalized format (first 6 chars, uppercase, no colons)
+        let normalized = mac.replace(':', "").to_uppercase();
+        if normalized.len() >= 6 {
+            let oui_prefix = &normalized[0..6];
+            if let Ok(Some(entry)) = db.lookup_by_mac(oui_prefix) {
+                return Some(entry.company_name.clone());
+            }
+        }
+
+        None
     }
 
     pub fn start(self, tx: mpsc::Sender<Asset>) {
@@ -65,7 +86,7 @@ impl Sniffer {
         let mut cap = match Capture::from_device(device)
             .unwrap()
             .promisc(true)
-            .snaplen(512) // Minimal snaplen for headers + discovery payloads
+            .snaplen(1024)
             .buffer_size(2 * 1024 * 1024)
             .immediate_mode(true)
             .open() {
@@ -76,21 +97,16 @@ impl Sniffer {
                 }
             };
 
-        // OPTIMIZED BPF FILTER:
-        // 1. ARP
-        // 2. UDP Ports: 67,68 (DHCP), 53 (DNS), 5353 (mDNS), 5355 (LLMNR), 137 (NBNS)
-        // 3. ICMPv6 Types: 134 (RA), 135 (NS), 136 (NA)
-        // 4. Ether types: 0x88cc (LLDP), 0x2000 (CDP)
         let filter = "arp or \
                       (udp port 67 or port 68 or port 53 or port 5353 or port 5355 or port 137) or \
                       (icmp6 and (ip6[40] == 134 or ip6[40] == 135 or ip6[40] == 136)) or \
                       ether proto 0x88cc or ether proto 0x2000";
 
         if let Err(e) = cap.filter(filter, true) {
-             warn!("Failed to set optimized BPF filter: {}", e);
+             warn!("Failed to set BPF filter: {}", e);
         }
 
-        info!("Highly-optimized sniffer started on {}", interface_name);
+        info!("Specialized sniffer started on {}", interface_name);
 
         loop {
             let packet = match cap.next_packet() {
@@ -103,11 +119,13 @@ impl Sniffer {
             };
 
             if let Some(discovery) = self.process_packet(&packet.data) {
+                let vendor = self.get_vendor(&discovery.mac);
+                
                 let asset = Asset {
                     mac_address: discovery.mac.clone(),
                     ip_address: discovery.ip,
                     hostname: discovery.hostname,
-                    vendor: self.get_vendor(&discovery.mac),
+                    vendor,
                     vlan_id: discovery.vlan_id,
                     discovery_method: discovery.method,
                     first_seen_at: Utc::now(),
