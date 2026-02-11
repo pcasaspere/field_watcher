@@ -1,7 +1,7 @@
 use pcap::{Capture, Device};
 use etherparse::{PacketHeaders, NetHeaders, TransportHeader, EtherType};
-use crate::models::{Asset, Connection};
-use crate::utils::{TCP_PROTOCOLS, UDP_PROTOCOLS};
+use crate::domain::models::{Asset, Connection};
+use crate::network::protocols::{TCP_PROTOCOLS, UDP_PROTOCOLS};
 use std::collections::{HashMap, HashSet};
 use chrono::Utc;
 use tracing::{warn, error};

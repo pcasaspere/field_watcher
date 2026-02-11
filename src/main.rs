@@ -1,17 +1,15 @@
 mod cli;
 mod config;
-mod database;
-mod models;
-mod sniffer;
-mod utils;
-mod api;
+mod domain;
+mod network;
+mod storage;
 
-use clap::Parser;
 use cli::Cli;
+use clap::Parser;
 use config::Config;
-use database::Database;
-use sniffer::Sniffer;
-use api::ApiManager;
+use storage::database::Database;
+use network::sniffer::Sniffer;
+use network::api::ApiManager;
 use std::process;
 use tracing::{error, info};
 use tracing_subscriber;
@@ -126,12 +124,6 @@ async fn main() {
 
             // Sync to API
             if let Some(api) = &api_manager {
-                // In Python, it seems it synced both assets and connections to the same endpoint?
-                // Actually, in field-watcher.py:
-                // self.sync_assets(assets)
-                // self.sync_connections(connections)
-                // And both methods had "PENDENT CREAR WEBHOOK" for API usage.
-                
                 if !assets.is_empty() {
                     if let Err(e) = api.sync(&assets).await {
                         error!("Failed to sync assets to API: {}", e);

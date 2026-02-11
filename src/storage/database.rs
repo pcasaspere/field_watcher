@@ -1,5 +1,5 @@
 use rusqlite::{params, Connection as SqliteConnection, Result};
-use crate::models::{Asset, Connection};
+use crate::domain::models::{Asset, Connection};
 use std::path::Path;
 use chrono::Utc;
 
