@@ -8,6 +8,7 @@ pub struct Asset {
     pub hostname: Option<String>,
     pub vendor: Option<String>,
     pub vlan_id: u16,
-    pub last_seen_at: DateTime<Utc>,
+    pub discovery_method: String,
     pub first_seen_at: DateTime<Utc>,
+    pub last_seen_at: DateTime<Utc>,
 }
