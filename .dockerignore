@@ -1,0 +1,7 @@
+target/
+legacy/
+.git/
+.gitignore
+ROADMAP.md
+Dockerfile
+.dockerignore

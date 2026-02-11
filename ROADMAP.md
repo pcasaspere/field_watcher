@@ -39,7 +39,7 @@ This document outlines the strategy for migrating the `field_watcher` project fr
 - [ ] **Performance Tuning**: Optimize packet processing to handle higher traffic.
 
 ## Phase 6: Deployment & Cleanup
-- [ ] **Cross-compilation**: Set up builds for target architectures.
+- [x] **Cross-compilation**: Set up Dockerfile for amd64 Linux builds.
 - [x] **Documentation**: Update `README.md` with Rust-specific instructions.
 - [x] **Legacy Deletion**: Once the Rust version is stable, remove the Python code from the `main` branch (keeping it in `v1`).
 
