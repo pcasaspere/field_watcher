@@ -65,7 +65,7 @@ impl Sniffer {
         let mut cap = match Capture::from_device(device)
             .unwrap()
             .promisc(true)
-            .snaplen(1024)
+            .snaplen(512) // Minimal snaplen for headers + discovery payloads
             .buffer_size(2 * 1024 * 1024)
             .immediate_mode(true)
             .open() {
@@ -76,12 +76,21 @@ impl Sniffer {
                 }
             };
 
-        let filter = "arp or ip or ip6 or ether proto 0x88cc or ether proto 0x2000";
+        // OPTIMIZED BPF FILTER:
+        // 1. ARP
+        // 2. UDP Ports: 67,68 (DHCP), 53 (DNS), 5353 (mDNS), 5355 (LLMNR), 137 (NBNS)
+        // 3. ICMPv6 Types: 134 (RA), 135 (NS), 136 (NA)
+        // 4. Ether types: 0x88cc (LLDP), 0x2000 (CDP)
+        let filter = "arp or \
+                      (udp port 67 or port 68 or port 53 or port 5353 or port 5355 or port 137) or \
+                      (icmp6 and (ip6[40] == 134 or ip6[40] == 135 or ip6[40] == 136)) or \
+                      ether proto 0x88cc or ether proto 0x2000";
+
         if let Err(e) = cap.filter(filter, true) {
-             warn!("Failed to set BPF filter: {}", e);
+             warn!("Failed to set optimized BPF filter: {}", e);
         }
 
-        info!("Specialized discovery sniffer started on {}", interface_name);
+        info!("Highly-optimized sniffer started on {}", interface_name);
 
         loop {
             let packet = match cap.next_packet() {
@@ -205,11 +214,11 @@ impl Sniffer {
         }
 
         // 4. CDP / LLDP
-        if eth.ether_type == EtherType(0x88CC) {
+        if eth.ether_type == EtherType(0x88CC) || eth.ether_type == EtherType(0x2000) {
             return Some(RawDiscovery {
                 mac: src_mac,
                 ip: "0.0.0.0".to_string(),
-                method: "LLDP".to_string(),
+                method: if eth.ether_type == EtherType(0x88CC) { "LLDP".to_string() } else { "CDP".to_string() },
                 hostname: None,
                 vlan_id,
             });
