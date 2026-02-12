@@ -8,61 +8,6 @@ on:
       - 'v*'
 
 jobs:
-  build:
-    name: Build - ${{ matrix.target }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            asset_name: field_watcher-linux-amd64
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            asset_name: field_watcher-windows-amd64.exe
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install system dependencies (Linux)
-        if: contains(matrix.target, 'linux')
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libpcap-dev
-
-      - name: Install system dependencies (Windows)
-        if: contains(matrix.target, 'windows')
-        run: |
-          Invoke-WebRequest -Uri "https://www.winpcap.org/install/bin/WpdPack_4_1_2.zip" -OutFile "WpdPack.zip"
-          Expand-Archive -Path "WpdPack.zip" -DestinationPath "C:\"
-          echo "LIB=C:\WpdPack\Lib\x64;$env:LIB" >> $env:GITHUB_ENV
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-
-      - name: Build
-        run: cargo build --release --target ${{ matrix.target }}
-
-      - name: Prepare binary
-        shell: bash
-        run: |
-          cd target/${{ matrix.target }}/release
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            mv field_watcher.exe ../../../${{ matrix.asset_name }}
-          else
-            mv field_watcher ../../../${{ matrix.asset_name }}
-          fi
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.asset_name }}
-          path: ${{ matrix.asset_name }}
-
   build-rocky:
     name: Build - RockyLinux 9
     runs-on: ubuntu-latest
@@ -84,17 +29,20 @@ jobs:
         run: |
           source $HOME/.cargo/env
           cargo build --release
-          mv target/release/field_watcher ./field_watcher-rocky10
+          # Extract version from Cargo.toml
+          VERSION=$(grep '^version =' Cargo.toml | cut -d '"' -f 2)
+          echo "APP_VERSION=$VERSION" >> $GITHUB_ENV
+          mv target/release/field_watcher ./field_watcher-rocky9
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: field_watcher-rocky10
-          path: field_watcher-rocky10
+          name: field_watcher-rocky9
+          path: field_watcher-rocky9
 
   release:
     name: Create Release
-    needs: [build, build-rocky]
+    needs: [build-rocky]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -108,12 +56,17 @@ jobs:
           path: artifacts
           merge-multiple: true
 
+      - name: Get version
+        run: |
+          VERSION=$(grep '^version =' Cargo.toml | cut -d '"' -f 2)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/*
-          tag_name: latest
-          name: Latest Release
+          tag_name: ${{ github.ref_name }}
+          name: Release v${{ env.VERSION }}
           prerelease: false
           generate_release_notes: true
         env:

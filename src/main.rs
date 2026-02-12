@@ -63,6 +63,7 @@ async fn main() {
                         comfy_table::Cell::new("Vendor").add_attribute(comfy_table::Attribute::Bold),
                         comfy_table::Cell::new("Hostname").add_attribute(comfy_table::Attribute::Bold),
                         comfy_table::Cell::new("Method").add_attribute(comfy_table::Attribute::Bold),
+                        comfy_table::Cell::new("First Seen").add_attribute(comfy_table::Attribute::Bold),
                         comfy_table::Cell::new("Last Seen").add_attribute(comfy_table::Attribute::Bold),
                     ]);
 
@@ -86,6 +87,7 @@ async fn main() {
                         comfy_table::Cell::new(asset.vendor.clone().unwrap_or_else(|| "Unknown".to_string())),
                         comfy_table::Cell::new(asset.hostname.clone().unwrap_or_else(|| "-".to_string())).fg(comfy_table::Color::Yellow),
                         comfy_table::Cell::new(asset.discovery_method.clone()),
+                        comfy_table::Cell::new(asset.first_seen_at.format("%Y-%m-%d %H:%M:%S").to_string()),
                         comfy_table::Cell::new(asset.last_seen_at.format("%Y-%m-%d %H:%M:%S").to_string()),
                     ]);
                 }

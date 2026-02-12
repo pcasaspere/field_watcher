@@ -9,7 +9,7 @@ pub struct Cli {
     pub interface: String,
 
     /// Path to the SQLite database file
-    #[arg(short, long, default_value = "database.db", env = "FW_DB_PATH")]
+    #[arg(short, long, default_value = "/var/lib/field_watcher/assets.db", env = "FW_DB_PATH")]
     pub db_path: String,
 
     /// List all discovered hosts from the database
