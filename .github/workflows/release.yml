@@ -32,13 +32,13 @@ jobs:
           # Extract version from Cargo.toml
           VERSION=$(grep '^version =' Cargo.toml | cut -d '"' -f 2)
           echo "APP_VERSION=$VERSION" >> $GITHUB_ENV
-          mv target/release/field_watcher ./field_watcher-rocky9
+          mv target/release/field_watcher ./field_watcher-linux-x86_64
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: field_watcher-rocky9
-          path: field_watcher-rocky9
+          name: field_watcher-linux-x86_64
+          path: field_watcher-linux-x86_64
 
   release:
     name: Create Release

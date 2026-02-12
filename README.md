@@ -55,7 +55,7 @@ At any time, you can view a clean table of all discovered devices:
 
 If you want the watcher to run automatically in the background when your system starts:
 
-1. **Move the binary**: `sudo cp field_watcher-rocky9 /usr/local/sbin/field_watcher`
+1. **Move the binary**: `sudo cp field_watcher-linux-x86_64 /usr/local/sbin/field_watcher`
 2. **Create the service file**: `sudo nano /etc/systemd/system/field-watcher.service`
 
 Paste this inside:
