@@ -74,6 +74,8 @@ jobs:
 
       - name: Install dependencies
         run: |
+          dnf install -y 'dnf-command(config-manager)'
+          dnf config-manager --set-enabled crb
           dnf install -y gcc glibc-devel libpcap-devel pkg-config
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
