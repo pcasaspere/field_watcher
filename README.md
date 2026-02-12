@@ -88,5 +88,42 @@ sudo systemctl enable --now field-watcher
 2.  Build the project: `cargo build --release`.
 3.  The binary will be ready at `./target/release/field_watcher`.
 
+## 🌍 Multi-architecture Compilation
+
+Per compilar Field Watcher per a diferents plataformes, primer cal afegir el "target" corresponent amb `rustup` i després executar el build. 
+
+> **Nota**: Com que el projecte depèn de biblioteques de C (`libpcap`), la compilació creuada des d'un sistema operatiu diferent pot requerir eines addicionals (com un cross-compiler).
+
+### Linux
+- **AMD64 (64-bit)**: `x86_64-unknown-linux-gnu`
+  ```bash
+  rustup target add x86_64-unknown-linux-gnu
+  cargo build --release --target x86_64-unknown-linux-gnu
+  ```
+- **ARM64 (Raspberry Pi, etc.)**: `aarch64-unknown-linux-gnu`
+  ```bash
+  rustup target add aarch64-unknown-linux-gnu
+  cargo build --release --target aarch64-unknown-linux-gnu
+  ```
+
+### macOS
+- **Apple Silicon (M1/M2/M3)**: `aarch64-apple-darwin`
+  ```bash
+  rustup target add aarch64-apple-darwin
+  cargo build --release --target aarch64-apple-darwin
+  ```
+- **Intel**: `x86_64-apple-darwin`
+  ```bash
+  rustup target add x86_64-apple-darwin
+  cargo build --release --target x86_64-apple-darwin
+  ```
+
+### Windows
+- **AMD64 (64-bit)**: `x86_64-pc-windows-msvc`
+  ```bash
+  rustup target add x86_64-pc-windows-msvc
+  cargo build --release --target x86_64-pc-windows-msvc
+  ```
+
 ---
 *Created with ❤️ for network visibility.*
