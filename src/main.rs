@@ -40,22 +40,94 @@ async fn main() {
 
     if args.list {
         match db.get_all_assets() {
-            Ok(assets) => {
+            Ok(mut assets) => {
+                // Sort by VLAN ID first, then by IP address
+                assets.sort_by(|a, b| {
+                    match a.vlan_id.cmp(&b.vlan_id) {
+                        std::cmp::Ordering::Equal => {
+                            // Basic IP sorting (lexicographical is usually fine for display, 
+                            // but we could do more complex if needed)
+                            a.ip_address.cmp(&b.ip_address)
+                        }
+                        other => other,
+                    }
+                });
+
                 let mut table = Table::new();
-                table.set_header(vec!["IP Address", "MAC Address", "Vendor", "VLAN", "Hostname", "Method", "First Seen", "Last Seen"]);
+                table.load_preset(comfy_table::presets::UTF8_FULL)
+                    .set_content_arrangement(comfy_table::ContentArrangement::Dynamic)
+                    .set_header(vec![
+                        comfy_table::Cell::new("VLAN").add_attribute(comfy_table::Attribute::Bold),
+                        comfy_table::Cell::new("IP Address").add_attribute(comfy_table::Attribute::Bold),
+                        comfy_table::Cell::new("MAC Address").add_attribute(comfy_table::Attribute::Bold),
+                        comfy_table::Cell::new("Vendor").add_attribute(comfy_table::Attribute::Bold),
+                        comfy_table::Cell::new("Hostname").add_attribute(comfy_table::Attribute::Bold),
+                        comfy_table::Cell::new("Method").add_attribute(comfy_table::Attribute::Bold),
+                        comfy_table::Cell::new("Last Seen").add_attribute(comfy_table::Attribute::Bold),
+                    ]);
+
+                let mut current_vlan = None;
+
                 for asset in assets {
+                    // Add a visual separator or grouping logic if needed
+                    // Here we just ensure the VLAN is visible and sorted
+                    
+                    let vlan_str = if current_vlan == Some(asset.vlan_id) {
+                        "".to_string() // Don't repeat VLAN ID for cleaner look within groups
+                    } else {
+                        current_vlan = Some(asset.vlan_id);
+                        asset.vlan_id.to_string()
+                    };
+
                     table.add_row(vec![
-                        asset.ip_address,
-                        asset.mac_address,
-                        asset.vendor.unwrap_or_else(|| "Unknown".to_string()),
-                        asset.vlan_id.to_string(),
-                        asset.hostname.unwrap_or_else(|| "-".to_string()),
-                        asset.discovery_method,
-                        asset.first_seen_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-                        asset.last_seen_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+                        comfy_table::Cell::new(vlan_str).fg(comfy_table::Color::Cyan),
+                        comfy_table::Cell::new(asset.ip_address).fg(comfy_table::Color::Green),
+                        comfy_table::Cell::new(asset.mac_address),
+                        comfy_table::Cell::new(asset.vendor.unwrap_or_else(|| "Unknown".to_string())),
+                        comfy_table::Cell::new(asset.hostname.unwrap_or_else(|| "-".to_string())).fg(comfy_table::Color::Yellow),
+                        comfy_table::Cell::new(asset.discovery_method),
+                        comfy_table::Cell::new(asset.last_seen_at.format("%Y-%m-%d %H:%M:%S").to_string()),
                     ]);
                 }
-                println!("{}", table);
+                
+                if table.is_empty() {
+                    println!("No assets found in database.");
+                } else {
+                    println!("{}", table);
+
+                    // Calculate summary stats
+                    let total_assets = assets.len();
+                    let mut vlan_stats: std::collections::BTreeMap<u16, usize> = std::collections::BTreeMap::new();
+                    for asset in &assets {
+                        *vlan_stats.entry(asset.vlan_id).or_insert(0) += 1;
+                    }
+
+                    let mut summary_table = Table::new();
+                    summary_table.load_preset(comfy_table::presets::UTF8_FULL)
+                        .set_header(vec![
+                            comfy_table::Cell::new("VLAN").add_attribute(comfy_table::Attribute::Bold),
+                            comfy_table::Cell::new("Hosts Count").add_attribute(comfy_table::Attribute::Bold),
+                            comfy_table::Cell::new("Percentage").add_attribute(comfy_table::Attribute::Bold),
+                        ]);
+
+                    for (vlan, count) in vlan_stats {
+                        let percentage = (count as f64 / total_assets as f64) * 100.0;
+                        summary_table.add_row(vec![
+                            comfy_table::Cell::new(vlan.to_string()).fg(comfy_table::Color::Cyan),
+                            comfy_table::Cell::new(count.to_string()),
+                            comfy_table::Cell::new(format!("{:.1}%", percentage)),
+                        ]);
+                    }
+
+                    summary_table.add_row(vec![
+                        comfy_table::Cell::new("TOTAL").add_attribute(comfy_table::Attribute::Bold),
+                        comfy_table::Cell::new(total_assets.to_string()).add_attribute(comfy_table::Attribute::Bold).fg(comfy_table::Color::Green),
+                        comfy_table::Cell::new("100%").add_attribute(comfy_table::Attribute::Bold),
+                    ]);
+
+                    println!("\nSummary by VLAN:");
+                    println!("{}", summary_table);
+                }
             },
             Err(e) => error!("Failed to read database: {}", e),
         }
