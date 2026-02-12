@@ -1,15 +1,22 @@
 # 📡 Field Watcher
 
+[![Release](https://github.com/pcasaspere/field_watcher/actions/workflows/release.yml/badge.svg)](https://github.com/pcasaspere/field_watcher/actions/workflows/release.yml)
+[![Buy Me A Coffee](https://img.shields.io/badge/buy%20me%20a%20coffee-donate-yellow.svg)](https://buymeacoffee.com/pcasaspere9)
+
 **Field Watcher** is an autonomous network "listener" that automatically discovers every device on your network without ever sending a single packet. It is designed to sit passively on a network port and map out your digital environment in real-time.
 
 Think of it as a **silent digital census** for your network.
+
+> [!TIP]
+> **Handcrafted in the Mediterranean 🌊**
+> Built with a focus on simplicity, performance, and the philosophy of "it just works". No bloat, no complex configs, just pure network visibility.
 
 ## ✨ Why Field Watcher?
 
 -   **🕵️ 100% Passive**: It doesn't "scan" or "ping". It just listens to the natural conversations of the network, making it invisible and safe for sensitive environments.
 -   **🤖 Fully Automatic**: You don't need to tell it which network to watch. It figures out the IP ranges, VLANs, and devices on its own.
 -   **🔍 Deep Identification**: It extracts device names, manufacturers (like Apple, Cisco, or Tesla), and tracking their movement across different IP addresses.
--   **⚡ High Performance**: Designed to handle high-traffic environments (like data center SPAN ports) while using minimal computer resources.
+-   **⚡ High Performance**: Written in **Rust** 🦀, designed to handle high-traffic environments (like data center SPAN ports) while using minimal computer resources.
 
 ## 🚀 How it works
 
@@ -48,7 +55,7 @@ At any time, you can view a clean table of all discovered devices:
 
 If you want the watcher to run automatically in the background when your system starts:
 
-1. **Move the binary**: `sudo cp target/release/field_watcher /usr/local/sbin/`
+1. **Move the binary**: `sudo cp field_watcher-rocky9 /usr/local/sbin/field_watcher`
 2. **Create the service file**: `sudo nano /etc/systemd/system/field-watcher.service`
 
 Paste this inside:
@@ -58,7 +65,7 @@ Description=Field Watcher Network Discovery
 After=network.target
 
 [Service]
-ExecStart=/usr/locals/sbin/field_watcher --interface "eth0" --db-path "/var/lib/field_watcher/assets.db"
+ExecStart=/usr/local/sbin/field_watcher --interface "eth0" --db-path "/var/lib/field_watcher/assets.db"
 Restart=always
 User=root
 
@@ -77,7 +84,7 @@ sudo systemctl enable --now field-watcher
 | Option | Description |
 | :--- | :--- |
 | `-i, --interface` | Which network cards to listen on (e.g., `eth0`). |
-| `-d, --db-path` | Where to save the discovered data. |
+| `-d, --db-path` | Where to save the discovered data (Default: `/var/lib/field_watcher/assets.db`). |
 | `--list` | Show the table of all found devices and exit. |
 | `--reset` | Delete all stored data and start fresh. |
 | `--verbose` | Show detailed activity logs while running. |
@@ -88,42 +95,5 @@ sudo systemctl enable --now field-watcher
 2.  Build the project: `cargo build --release`.
 3.  The binary will be ready at `./target/release/field_watcher`.
 
-## 🌍 Multi-architecture Compilation
-
-Per compilar Field Watcher per a diferents plataformes, primer cal afegir el "target" corresponent amb `rustup` i després executar el build. 
-
-> **Nota**: Com que el projecte depèn de biblioteques de C (`libpcap`), la compilació creuada des d'un sistema operatiu diferent pot requerir eines addicionals (com un cross-compiler).
-
-### Linux
-- **AMD64 (64-bit)**: `x86_64-unknown-linux-gnu`
-  ```bash
-  rustup target add x86_64-unknown-linux-gnu
-  cargo build --release --target x86_64-unknown-linux-gnu
-  ```
-- **ARM64 (Raspberry Pi, etc.)**: `aarch64-unknown-linux-gnu`
-  ```bash
-  rustup target add aarch64-unknown-linux-gnu
-  cargo build --release --target aarch64-unknown-linux-gnu
-  ```
-
-### macOS
-- **Apple Silicon (M1/M2/M3)**: `aarch64-apple-darwin`
-  ```bash
-  rustup target add aarch64-apple-darwin
-  cargo build --release --target aarch64-apple-darwin
-  ```
-- **Intel**: `x86_64-apple-darwin`
-  ```bash
-  rustup target add x86_64-apple-darwin
-  cargo build --release --target x86_64-apple-darwin
-  ```
-
-### Windows
-- **AMD64 (64-bit)**: `x86_64-pc-windows-msvc`
-  ```bash
-  rustup target add x86_64-pc-windows-msvc
-  cargo build --release --target x86_64-pc-windows-msvc
-  ```
-
 ---
-*Created with ❤️ for network visibility.*
+*Created with ❤️ for network visibility. If you find this tool useful, consider [buying me a coffee](https://buymeacoffee.com/pcasaspere9).*
