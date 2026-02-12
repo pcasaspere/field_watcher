@@ -64,10 +64,10 @@ jobs:
           path: ${{ matrix.asset_name }}
 
   build-rocky:
-    name: Build - RockyLinux 10
+    name: Build - RockyLinux 9
     runs-on: ubuntu-latest
     container:
-      image: rockylinux:10
+      image: rockylinux:9
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
