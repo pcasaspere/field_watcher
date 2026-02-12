@@ -162,16 +162,20 @@ impl Sniffer {
         let src_mac = format!("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}", 
             eth.source[0], eth.source[1], eth.source[2], eth.source[3], eth.source[4], eth.source[5]);
 
-        if eth.ether_type == EtherType::ARP && data.len() >= 42 {
-            let psrc = &data[28..32];
-            if Self::is_private_ip([psrc[0], psrc[1], psrc[2], psrc[3]]) {
-                return Some(RawDiscovery {
-                    mac: src_mac,
-                    ip: format!("{}.{}.{}.{}", psrc[0], psrc[1], psrc[2], psrc[3]),
-                    method: "ARP".to_string(),
-                    hostname: None,
-                    vlan_id,
-                });
+        if eth.ether_type == EtherType::ARP {
+            let arp_payload = value.payload.slice();
+            // ARP: sender IP starts at offset 14 (2+2+1+1+2+6 = hardware_type + proto_type + hw_len + proto_len + op + sender_hw)
+            if arp_payload.len() >= 28 {
+                let psrc = &arp_payload[14..18];
+                if Self::is_private_ip([psrc[0], psrc[1], psrc[2], psrc[3]]) {
+                    return Some(RawDiscovery {
+                        mac: src_mac,
+                        ip: format!("{}.{}.{}.{}", psrc[0], psrc[1], psrc[2], psrc[3]),
+                        method: "ARP".to_string(),
+                        hostname: None,
+                        vlan_id,
+                    });
+                }
             }
         }
 

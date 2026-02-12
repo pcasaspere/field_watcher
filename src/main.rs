@@ -41,13 +41,14 @@ async fn main() {
     if args.list {
         match db.get_all_assets() {
             Ok(mut assets) => {
-                // Sort by VLAN ID first, then by IP address
+                // Sort by VLAN ID first, then by IP address (numeric)
                 assets.sort_by(|a, b| {
                     match a.vlan_id.cmp(&b.vlan_id) {
                         std::cmp::Ordering::Equal => {
-                            // Basic IP sorting (lexicographical is usually fine for display, 
-                            // but we could do more complex if needed)
-                            a.ip_address.cmp(&b.ip_address)
+                            let parse_ip = |ip: &str| -> Vec<u32> {
+                                ip.split('.').filter_map(|s| s.parse().ok()).collect()
+                            };
+                            parse_ip(&a.ip_address).cmp(&parse_ip(&b.ip_address))
                         }
                         other => other,
                     }

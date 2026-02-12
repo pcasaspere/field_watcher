@@ -15,8 +15,23 @@ Think of it as a **silent digital census** for your network.
 
 -   **🕵️ 100% Passive**: It doesn't "scan" or "ping". It just listens to the natural conversations of the network, making it invisible and safe for sensitive environments.
 -   **🤖 Fully Automatic**: You don't need to tell it which network to watch. It figures out the IP ranges, VLANs, and devices on its own.
--   **🔍 Deep Identification**: It extracts device names, manufacturers (like Apple, Cisco, or Tesla), and tracking their movement across different IP addresses.
+-   **🔍 Deep Identification**: It extracts device names, manufacturers (like Apple, Cisco, or Tesla), and tracks their movement across different IP addresses.
+-   **🏷️ VLAN Aware**: Automatically detects and groups devices by VLAN, including 802.1Q and QinQ (double-tagged) frames.
 -   **⚡ High Performance**: Written in **Rust** 🦀, designed to handle high-traffic environments (like data center SPAN ports) while using minimal computer resources.
+
+## 📡 Supported Protocols
+
+| Protocol | What it detects |
+| :--- | :--- |
+| ARP | IPv4 device presence and MAC-to-IP mappings |
+| DHCP | Devices requesting or receiving IP leases |
+| DNS | Devices resolving domain names |
+| mDNS | Local hostnames (`.local` devices like printers, IoT) |
+| LLMNR | Windows hostname resolution |
+| NBNS | Legacy NetBIOS name discovery |
+| NDP | IPv6 neighbor and router advertisements |
+| LLDP | Network infrastructure (switches, APs) |
+| CDP | Cisco device identification |
 
 ## 🚀 How it works
 
@@ -32,6 +47,9 @@ graph TD
 ```
 
 ## 🛠️ Quick Start
+
+> [!IMPORTANT]
+> Packet capture requires **root privileges** (or `CAP_NET_RAW` capability). Run with `sudo` or as root.
 
 ### 1. Run the Watcher
 Start the daemon to begin monitoring your network interfaces:
@@ -49,6 +67,19 @@ At any time, you can view a clean table of all discovered devices:
 
 ```bash
 ./field_watcher --list
+```
+
+Example output:
+```
+┌──────┬─────────────────┬───────────────────┬──────────────────────┬──────────────┬────────┬─────────────────────┬─────────────────────┐
+│ VLAN │ IP Address      │ MAC Address       │ Vendor               │ Hostname     │ Method │ First Seen          │ Last Seen           │
+╞══════╪═════════════════╪═══════════════════╪══════════════════════╪══════════════╪════════╪═════════════════════╪═════════════════════╡
+│ 1    │ 192.168.1.1     │ AA:BB:CC:11:22:33 │ Cisco Systems        │ gateway      │ ARP    │ 2025-01-15 08:30:00 │ 2025-01-15 10:45:12 │
+├──────┼─────────────────┼───────────────────┼──────────────────────┼──────────────┼────────┼─────────────────────┼─────────────────────┤
+│      │ 192.168.1.42    │ DD:EE:FF:44:55:66 │ Apple, Inc.          │ macbook-pere │ mDNS   │ 2025-01-15 08:31:00 │ 2025-01-15 10:44:58 │
+├──────┼─────────────────┼───────────────────┼──────────────────────┼──────────────┼────────┼─────────────────────┼─────────────────────┤
+│ 100  │ 10.0.100.5      │ 11:22:33:AA:BB:CC │ Hewlett Packard      │ printer-lab  │ LLMNR  │ 2025-01-15 09:00:00 │ 2025-01-15 10:30:00 │
+└──────┴─────────────────┴───────────────────┴──────────────────────┴──────────────┴────────┴─────────────────────┴─────────────────────┘
 ```
 
 ## 🐧 Running as a Service (Linux)

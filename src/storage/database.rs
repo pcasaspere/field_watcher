@@ -39,6 +39,12 @@ impl Database {
             )",
             [],
         )?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_assets_last_seen ON assets(last_seen_at DESC)",
+            [],
+        )?;
+
         Ok(())
     }
 
