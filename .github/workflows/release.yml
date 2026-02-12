@@ -63,9 +63,36 @@ jobs:
           name: ${{ matrix.asset_name }}
           path: ${{ matrix.asset_name }}
 
+  build-rocky:
+    name: Build - RockyLinux 10
+    runs-on: ubuntu-latest
+    container:
+      image: rockylinux:10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          dnf install -y gcc glibc-devel libpcap-devel pkg-config
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Build
+        run: |
+          source $HOME/.cargo/env
+          cargo build --release
+          mv target/release/field_watcher ./field_watcher-rocky10
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: field_watcher-rocky10
+          path: field_watcher-rocky10
+
   release:
     name: Create Release
-    needs: build
+    needs: [build, build-rocky]
     runs-on: ubuntu-latest
     permissions:
       contents: write
