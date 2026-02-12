@@ -6,8 +6,8 @@ The following versions of Field Watcher are currently being supported with secur
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.1.x   | ✅ Yes             |
-| < 0.1   | ❌ No              |
+| 2.1.x   | ✅ Yes             |
+| < 2.1   | ❌ No              |
 
 ## Reporting a Vulnerability
 
