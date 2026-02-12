@@ -68,7 +68,7 @@ async fn main() {
 
                 let mut current_vlan = None;
 
-                for asset in assets {
+                for asset in &assets {
                     // Add a visual separator or grouping logic if needed
                     // Here we just ensure the VLAN is visible and sorted
                     
@@ -81,11 +81,11 @@ async fn main() {
 
                     table.add_row(vec![
                         comfy_table::Cell::new(vlan_str).fg(comfy_table::Color::Cyan),
-                        comfy_table::Cell::new(asset.ip_address).fg(comfy_table::Color::Green),
-                        comfy_table::Cell::new(asset.mac_address),
-                        comfy_table::Cell::new(asset.vendor.unwrap_or_else(|| "Unknown".to_string())),
-                        comfy_table::Cell::new(asset.hostname.unwrap_or_else(|| "-".to_string())).fg(comfy_table::Color::Yellow),
-                        comfy_table::Cell::new(asset.discovery_method),
+                        comfy_table::Cell::new(asset.ip_address.clone()).fg(comfy_table::Color::Green),
+                        comfy_table::Cell::new(asset.mac_address.clone()),
+                        comfy_table::Cell::new(asset.vendor.clone().unwrap_or_else(|| "Unknown".to_string())),
+                        comfy_table::Cell::new(asset.hostname.clone().unwrap_or_else(|| "-".to_string())).fg(comfy_table::Color::Yellow),
+                        comfy_table::Cell::new(asset.discovery_method.clone()),
                         comfy_table::Cell::new(asset.last_seen_at.format("%Y-%m-%d %H:%M:%S").to_string()),
                     ]);
                 }
